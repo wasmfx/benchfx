@@ -74,7 +74,7 @@ module DeepYield = struct
     else fn_reduce f p (lb+1) ub (z + Effect.Deep.match_with (f p) lb hco)
 
   let rec spawn level num =
-    if Int.equal level 0 then num
+    if Int.equal level 0 then (Effect.perform (Yield num); num)
     else let first = num * Parameters.children_per_level in
          let last = first + Parameters.children_per_level in
          let level = level - 1 in
@@ -85,25 +85,55 @@ module DeepYield = struct
 end
 
 
-module Shallow = struct
+module ShallowYield = struct
 
   type _ Effect.t += Yield : int -> unit Effect.t
-     | Spawn : (int -> int -> int) -> unit Effect.t
+     | Spawn : (int -> int -> unit) * int * int -> unit Effect.t
   exception Abort
 
-  let hco =
-    { retc = (fun ans -> ans)
+  let spawn f level num = Effect.perform (Spawn (f, level, num))
+  let yield i = Effect.perform (Yield i)
+
+  let q = Queue.create ()
+  let s = ref 0
+
+  let run_next () =
+    if Queue.is_empty q then ()
+    else Queue.pop q ()
+
+  let rec hco =
+    let open Effect.Deep in
+    { retc = (fun _ans -> run_next ())
     ; exnc = raise
     ; effc = (fun (type a) (eff : a Effect.t) ->
       match eff with
-      | Spawn f ->
+      | Spawn (f, level, num) ->
          Some (fun (k : (a, _) continuation) ->
+             Queue.push (fun () ->
+                 Effect.Deep.match_with (f level) num hco) q;
              Effect.Deep.continue k ())
       | Yield i ->
          Some (fun (k : (a, _) continuation) ->
-             assert false)
+             s := !s + i;
+             try Effect.Deep.discontinue k Abort with
+             | Abort -> run_next ())
       | _ -> None)
     }
+
+  let main () =
+    let rec init level num =
+      if Int.equal level 0 then yield num
+      else let first = num * Parameters.children_per_level in
+           let last = first + Parameters.children_per_level - 1 in
+           let level = level - 1 in
+           for i = first to last do
+             spawn init level i
+           done
+    in
+    s := 0;
+    Queue.clear q;
+    Effect.Deep.match_with (init 6) 0 hco;
+    !s
 
 end
 
