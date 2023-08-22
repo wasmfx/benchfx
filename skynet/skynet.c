@@ -7,8 +7,13 @@
 
 #include "parameters.h"
 
-extern void yield(uint64_t);
-extern uint64_t handle(uint32_t, uint64_t);
+extern
+__attribute__((import_module("env"),import_name("yield")))
+void yield(uint64_t);
+
+extern
+__attribute__((import_module("env"),import_name("handle")))
+uint64_t handle(uint32_t, uint64_t);
 
 __attribute__((export_name("skynet")))
 uint64_t skynet(uint32_t level, uint64_t num) {
