@@ -58,3 +58,7 @@ dkms.conf
 # Temporaries
 *~
 \#*
+
+# Ignore local WASI installation
+wasi-sdk-20.0/
+wasi-sdk-20.0-linux.tar.gz
