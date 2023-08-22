@@ -8,14 +8,14 @@ skynet_bespoke.wasm: skynet_bespoke.c
 	$(WASICC) $(WASICC_FLAGS) -o skynet_bespoke.wasm skynet_bespoke.c
 
 skynet_bespoke.cwasm: skynet_bespoke.wasm
-	$(WASMTIME) compile -o skynet_bespoke.cwasm skynet_bespoke.wasm
+	$(WASMTIMEC) -o skynet_bespoke.cwasm skynet_bespoke.wasm
 
 skynet_asyncify.wasm: skynet.c asyncify.c
 	$(WASICC) $(WASICC_FLAGS) -o skynet_asyncify.pre.wasm asyncify.c skynet.c
 	$(WASM_OPT) -O --asyncify skynet_asyncify.pre.wasm -o skynet_asyncify.wasm
 
 skynet_asyncify.cwasm: skynet_asyncify.wasm
-	$(WASMTIME) compile -o skynet_asyncify.cwasm skynet_asyncify.wasm
+	$(WASMTIMEC) -o skynet_asyncify.cwasm skynet_asyncify.wasm
 
 ## TODO(dhil): Currently skynet_wasmfx.wast is assembled by hand. We
 ## should have a tool do the assembling.
@@ -24,7 +24,11 @@ skynet_wasmfx.wasm: skynet_wasmfx.wast
 	chmod +x skynet_wasmfx.wasm
 
 skynet_wasmfx.cwasm: skynet_wasmfx.wasm
-	$(WASMTIME) compile --wasm-features=exceptions,function-references,typed-continuations -o skynet_wasmfx.cwasm skynet_wasmfx.wasm
+	$(WASMTIMEC) --wasm-features=exceptions,function-references,typed-continuations -o skynet_wasmfx.cwasm skynet_wasmfx.wasm
+
+.PHONY: bench
+bench: skynet_bespoke.cwasm skynet_asyncify.cwasm skynet_wasmfx.cwasm
+	$(HYPERFINE) "$(WASMTIMEC_RUN) skynet_bespoke.cwasm" "$(WASMTIMEC_RUN) skynet_asyncify.cwasm" "$(WASMTIMEC_RUN) --wasm-features=exceptions,function-references,typed-continuations skynet_wasmfx.cwasm"
 
 .PHONY: clean
 clean:
