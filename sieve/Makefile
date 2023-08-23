@@ -1,3 +1,3 @@
-BENCHMARK=skynet
+BENCHMARK=sieve
 
 include ../make.generic.config
