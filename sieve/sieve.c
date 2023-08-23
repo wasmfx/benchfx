@@ -1,4 +1,4 @@
-// Asyncify based implementation of Sieve of Eratosthenes
+// An implementation of Sieve of Eratosthenes using fibers.
 
 #include <stdlib.h>
 #include <stdbool.h>
