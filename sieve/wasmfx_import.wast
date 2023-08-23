@@ -1,0 +1,64 @@
+;; WasmFX implementation of the abstract sieve operations
+
+(module $wasmfx_import
+  (type $filter  (func (param i64) (result i32)))
+  (type $cfilter (cont $filter))
+  ;; (type $sender  (func (param i32) (result i32)))
+  ;; (type $csender (cont $sender))
+
+  (tag $init  (result i64))
+  (tag $yield (param i32) (result i64))
+
+  (elem declare func $filter)
+
+  ;; The filter function
+  (func $filter (param $my_prime i64) (result i32)
+    (local $divisible i32)
+    (local $candidate i64)
+    (local.set $candidate (suspend $init)) ;; retrieve the first candidate number.
+    (block $end
+      (loop $while
+        (if (i64.eq (local.get $candidate) (i64.const 0))
+          (then (br $end))
+          (else))
+        (local.set $divisible (i32.wrap_i64 (i64.rem_u (local.get $candidate) (local.get $my_prime))))
+        (local.set $candidate (suspend $yield (local.get $divisible))) ;; communicate the result and retrieve the next candidate.
+        (br $while)
+      ) ;; loop
+    ) ;; end
+    (return (i32.const 0)))
+  ;; filter_spawn
+  (func $filter_spawn (param $prime i64) (result i32)
+    (local $fiber (ref $cfilter))
+    (local.set $fiber (cont.new $cfilter (ref.func $filter)))
+    (block $on_init (result (ref $cfilter))
+      (resume $cfilter (tag $init $on_init)
+                       (local.get $prime)
+                       (local.get $fiber))
+      (unreachable)
+    ) ;; on_init [ (ref $cfilter) ]
+    (local.set $fiber) ;; store new continuation
+    (return (i32.const 0)) ;; return fiber index
+  )
+  (func $get_cont (param $idx i32) (result (ref $cfilter))
+    (unreachable)
+  )
+  ;; filter_send
+  (func $filter_send (param $fiber_idx i32) (param $candidate i64) (result i32)
+    (local $next_k (ref $cfilter))
+    (block $on_yield (result i32 (ref $cfilter))
+      (resume $cfilter (tag $yield $on_yield)
+                       (local.get $candidate)
+                       (call $get_cont (local.get $fiber_idx)))
+      (unreachable)
+    ) ;; on_yield [ i32 (ref $cfilter) ]
+    (local.set $next_k)
+    (return)
+  )
+  ;; filter_shutdown
+  (func $filter_shutdown (param $fiber_idx i32)
+    (resume $cfilter (i64.const 0)
+                     (call $get_cont (local.get $fiber_idx)))
+    (drop)
+  )
+)
