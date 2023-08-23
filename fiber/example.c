@@ -2,59 +2,112 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <assert.h>
 #include <string.h>
 
 #include "fiber.h"
+#include "wasi-io.h"
 
-extern volatile int n;
-volatile int k;
-
-void* hello(void *arg) {
-  printf("Hello %s\n", (char*)arg);
-  //int num = 40;
-  printf("Yielding\n");
-  fiber_yield();
-  printf("Resumed again\n");
-  //printf("%d + %d = %d\n", num, *answer, num + *answer);
+// "Hello world" example.
+__attribute__((noinline))
+void* knock_knock(void *msg) {
+  wasi_print((char*)msg);
+  msg = fiber_yield("Who's there?");
+  char who[] = "XXXX who?";
+  strncpy(who, (char*)msg, 4);
+  wasi_print((char*)msg);
+  msg = fiber_yield("Wasm who?");
+  wasi_print((char*)msg);
   return NULL;
 }
+
+// Calculator example.
+typedef enum { INIT, ADD, MUL, ANS } calc_op_t;
+
+typedef struct calc_command {
+  calc_op_t op;
+  uint32_t number;
+} calc_cmd_t;
+
 __attribute__((noinline))
-void hello_world(void) {
-  volatile int m = n;
-  if (n > 1) {
-    printf("Hello World\n");
-  } else {
-    k = m;
+void* calc(void *init_cmd) {
+  uint32_t result = 0;
+  calc_cmd_t *cmd = (calc_cmd_t*)init_cmd;
+  while (true) {
+    switch (cmd->op) {
+    case INIT:
+      result = cmd->number;
+      break;
+    case ADD:
+      result += cmd->number;
+      break;
+    case MUL:
+      result *= cmd->number;
+      break;
+    case ANS:
+      return (void*)result;
+    }
+    cmd = (calc_cmd_t*)fiber_yield((void*)result);
   }
-  fiber_yield();
-  printf("Bye!\n");
 }
 
+// Main entry point.
 int main(void) {
-  char *world = "World";
-  /* fiber_t fiber = fiber_alloc(4096, hello, NULL); */
-  /* printf("Resuming fiber\n"); */
-  /* fiber_resume(fiber, world); */
-  /* printf("Fiber yielded\n"); */
-  /* //printf("Received num = %" PRIu32 "\n", num); */
-  /* //int my_num = 2; */
-  /* //printf("Resuming fiber again\n"); */
-  /* //fiber_resume(fiber, NULL); */
+  fiber_result_t status;
 
-  /* if (!fiber_is_done(fiber)) { */
-  /*   printf("Fiber is not finished!\n"); */
-  /* } */
-  /* fiber_free(fiber); */
-  /* return 0; */
+  // Run "hello world" example.
+  char *response;
+  fiber_t door = fiber_alloc(knock_knock, NULL);
+  char *responses[] = { "Knock! Knock!\n", "Wasm\n", "WebAssembly!\n" };
 
-  fiber_t fiber = fiber_alloc(4096, hello_world, world);
-  printf("Starting fiber.\n");
-  fiber_resume(fiber);
-  printf("Fiber yielded\n");
-  fiber_resume(fiber);
+  for (int i = 0; i < sizeof(responses) / sizeof(char**); i++) {
+    response = (char*)fiber_resume(door, responses[i], &status);
+    assert(status == FIBER_OK);
+    printf("%s\n", response);
+  }
 
-  fiber_free(fiber);
-  printf("%d\n", k);
+  response = (char*)fiber_resume(door, NULL, &status);
+  assert(status == FIBER_ERROR);
+
+  fiber_free(door);
+
+  // Run calculator example.
+  fiber_t calculator = fiber_alloc(calc, NULL);
+
+  calc_op_t ops[] = {INIT, MUL, MUL, ADD, ADD, ANS};
+  uint32_t numbers[] = {1, 4, 4, 32, 16, 0};
+  uint32_t result = 0;
+
+  for (int i = 0; i < sizeof(numbers) / sizeof(uint32_t); i++) {
+    calc_cmd_t cmd = { .op = ops[i], .number = numbers[i] };
+    result = (uint32_t)fiber_resume(calculator, &cmd, &status);
+    switch (status) {
+    case FIBER_OK:
+      switch (ops[i]) {
+      case INIT:
+        printf("> %" PRIu32, result);
+        break;
+      case ADD:
+        printf(" + %" PRIu32 "\n", numbers[i]);
+        printf("> %" PRIu32 "", result);
+        break;
+      case MUL:
+        printf(" * %" PRIu32 "\n", numbers[i]);
+        printf("> %" PRIu32 "", result);
+        break;
+      case ANS:
+        printf(" ans\n");
+        break;
+      }
+      break;
+    case FIBER_ERROR:
+      printf("\n> fiber error!\n");
+      fiber_free(calculator);
+      return -1;
+    }
+  }
+
+  fiber_free(calculator);
 
   return 0;
 }
