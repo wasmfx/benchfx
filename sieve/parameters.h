@@ -21,9 +21,14 @@ int verify(const uint64_t *primes, size_t len, const uint64_t *primes_ref, uint6
     }
   }
   return 0;
+
 }
 
-#if _PRINT_PRIMES == 1
+#ifndef PRINT_PRIMES
+#define PRINT_PRIMES 0
+#endif
+
+#if PRINT_PRIMES == 1
 #define print_primes(primes, len) { \
   for (size_t i = 0; i < len; i++) \
     printf("%" PRIu64 " ", primes[i]); \
