@@ -47,12 +47,14 @@ typedef enum { ACTIVE, YIELDING, DONE } fiber_state_t;
 // for asyncify to store the call chain and locals. Note: asyncify
 // assumes `end` is at offset 4. Moreover, asyncify stacks grow
 // upwards, so it must be that top <= end.
-struct __attribute__((packed)) fiber_stack {
+struct  __attribute__((packed)) fiber_stack {
   uint8_t *top;
   uint8_t *end;
+  uint8_t *unwound;
+  uint8_t *buffer;
 };
 static_assert(sizeof(uint8_t*) == 4, "sizeof(uint8_t*) != 4");
-static_assert(sizeof(struct fiber_stack) == 8, "struct fiber_stack: No padding allowed");
+static_assert(sizeof(struct fiber_stack) == 16, "struct fiber_stack: No padding allowed");
 
 // The fiber structure embeds the asyncify stack (struct fiber_stack),
 // its state, an entry point, and two buffers for communicating
@@ -71,22 +73,28 @@ struct fiber {
 };
 
 // Allocates a fiber stack of size stack_size.
-static struct fiber_stack fiber_stack_alloc(size_t stack_size) {
-  uint8_t *top = malloc(sizeof(uint8_t) * stack_size);
-  uint8_t *end = top + stack_size;
-  struct fiber_stack stack = (struct fiber_stack) { top, end };
+static
+__attribute__((noinline))
+struct fiber_stack fiber_stack_alloc(size_t stack_size) {
+  uint8_t *buffer = malloc(sizeof(uint8_t) * stack_size);
+  uint8_t *top = buffer;
+  uint8_t *end = buffer + stack_size;
+  struct fiber_stack stack = (struct fiber_stack) { top, end, NULL, buffer };
   return stack;
 }
 
 // Frees an allocated fiber_stack.
-static void fiber_stack_free(struct fiber_stack fiber_stack) {
-  free(fiber_stack.top);
+static
+__attribute__((noinline))
+void fiber_stack_free(struct fiber_stack fiber_stack) {
+  free(fiber_stack.buffer);
 }
 
 // Allocates a fiber object.
 // NOTE: the entry point `fn` should be careful about uses of `printf`
 // and related functions, as they can cause asyncify to corrupt its
 // own state. See `wasi-io.h` for asyncify-safe printing functions.
+__attribute__((noinline))
 fiber_t fiber_sized_alloc(size_t stack_size, fiber_entry_point_t entry, void *local_data) {
   fiber_t fiber = (fiber_t)malloc(sizeof(struct fiber));
   fiber->stack = fiber_stack_alloc(stack_size);
@@ -98,12 +106,13 @@ fiber_t fiber_sized_alloc(size_t stack_size, fiber_entry_point_t entry, void *lo
 }
 
 // Allocates a fiber object with the default stack size.
-__attribute__((always_inline))
+__attribute__((noinline))
 fiber_t fiber_alloc(fiber_entry_point_t entry, void *local_data) {
   return fiber_sized_alloc(FIBER_DEFAULT_STACK_SIZE, entry, local_data);
 }
 
 // Frees a fiber object.
+__attribute__((noinline))
 void fiber_free(fiber_t fiber) {
   fiber_stack_free(fiber->stack);
   free(fiber);
@@ -132,6 +141,18 @@ void* fiber_yield(void *arg) {
   }
 }
 
+static
+__attribute__((noinline))
+void fiber_stack_note_unwound(struct fiber_stack* stack) {
+  stack->unwound = stack->top;
+}
+
+static
+__attribute__((noinline))
+void fiber_stack_rewind(struct fiber_stack* stack) {
+  stack->top = stack->unwound;
+}
+
 // Resumes a given fiber. Control is transferred to the fiber.
 __attribute__((noinline))
 __attribute__((export_name("fiber_resume")))
@@ -152,6 +173,7 @@ void* fiber_resume(fiber_t fiber, void *arg, fiber_result_t *result) {
     // ... then update the argument buffer.
     fiber->arg = arg;
     // ... and initiate the stack rewind.
+    fiber_stack_rewind(&fiber->stack);
     asyncify_start_rewind(&fiber->stack);
   }
 
@@ -160,6 +182,7 @@ void* fiber_resume(fiber_t fiber, void *arg, fiber_result_t *result) {
   void *fiber_result = fiber->entry(arg);
   // The following function delimits the effects of fiber_yield.
   asyncify_stop_unwind();
+  fiber_stack_note_unwound(&fiber->stack);
   // Check whether the fiber finished or suspended.
   if (fiber->state != YIELDING)
     fiber->state = DONE;
@@ -173,6 +196,7 @@ void* fiber_resume(fiber_t fiber, void *arg, fiber_result_t *result) {
 }
 
 // Checks whether a given fiber has finished.
+__attribute__((noinline))
 bool fiber_is_done(fiber_t fiber) {
   return fiber->state == DONE;
 }
