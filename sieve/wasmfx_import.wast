@@ -24,10 +24,11 @@
         (if (i64.eq (local.get $candidate) (i64.const 0))
           (then (br $end))
           (else))
-        (local.set $divisible (i32.wrap_i64
-                               (i64.rem_u
-                                (local.get $candidate)
-                                (local.get $my_prime))))
+        (local.set $divisible (i32.eqz
+                                (i32.wrap_i64
+                                  (i64.rem_u
+                                    (local.get $candidate)
+                                    (local.get $my_prime)))))
         (local.set $candidate (suspend $yield (local.get $divisible))) ;; communicate the result and retrieve the next candidate.
         (br $while)
       ) ;; loop
@@ -35,6 +36,7 @@
     (return (i32.const 0)))
   ;; filter_spawn
   (func $filter_spawn (param $prime i64) (result i32)
+    (local $fiber_idx i32)
     (local $fiber (ref $cfilter))
     (local.set $fiber (cont.new $cfilter (ref.func $filter)))
     (block $on_init (result (ref $cfilter))
@@ -51,9 +53,10 @@
       (else (drop ;; double the size of the table.
              (table.grow $conts (ref.null $cfilter)
                                 (i32.mul (table.size $conts) (i32.const 2))))))
-    (table.set $conts (global.get $next_slot) (local.get $fiber))
+    (local.set $fiber_idx (global.get $next_slot))
+    (table.set $conts (local.get $fiber_idx) (local.get $fiber))
     (global.set $next_slot (i32.add (global.get $next_slot) (i32.const 1)))
-    (return (i32.const 0)) ;; return fiber index
+    (return (local.get $fiber_idx)) ;; return fiber index
   )
   ;; filter_send
   (func $filter_send (param $fiber_idx i32) (param $candidate i64) (result i32)
@@ -65,6 +68,8 @@
       (unreachable)
     ) ;; on_yield [ i32 (ref $cfilter) ]
     (local.set $next_k)
+    ;; Update the continuation
+    (table.set $conts (local.get $fiber_idx) (local.get $next_k))
     (return)
   )
   ;; filter_shutdown
@@ -72,5 +77,6 @@
     (resume $cfilter (i64.const 0)
                      (table.get $conts (local.get $fiber_idx)))
     (drop)
+    (table.set $conts (local.get $fiber_idx) (ref.null $cfilter))
   )
 )
