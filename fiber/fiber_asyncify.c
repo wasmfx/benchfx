@@ -1,6 +1,5 @@
 // An asyncify implementation of the basic fiber interface.
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -50,11 +49,11 @@ typedef enum { ACTIVE, YIELDING, DONE } fiber_state_t;
 struct  __attribute__((packed)) fiber_stack {
   uint8_t *top;
   uint8_t *end;
-  uint8_t *unwound;
+  /* uint8_t *unwound; */
   uint8_t *buffer;
 };
 static_assert(sizeof(uint8_t*) == 4, "sizeof(uint8_t*) != 4");
-static_assert(sizeof(struct fiber_stack) == 16, "struct fiber_stack: No padding allowed");
+static_assert(sizeof(struct fiber_stack) == 12, "struct fiber_stack: No padding allowed");
 
 // The fiber structure embeds the asyncify stack (struct fiber_stack),
 // its state, an entry point, and two buffers for communicating
@@ -79,7 +78,7 @@ struct fiber_stack fiber_stack_alloc(size_t stack_size) {
   uint8_t *buffer = malloc(sizeof(uint8_t) * stack_size);
   uint8_t *top = buffer;
   uint8_t *end = buffer + stack_size;
-  struct fiber_stack stack = (struct fiber_stack) { top, end, NULL, buffer };
+  struct fiber_stack stack = (struct fiber_stack) { top, end, /* NULL, */ buffer };
   return stack;
 }
 
@@ -119,7 +118,7 @@ void fiber_free(fiber_t fiber) {
 }
 
 // Retrieves the fiber local data. Must be called from within a fiber.
-__attribute__((always_inline))
+__attribute__((noinline))
 void *fiber_get_local_data() {
   return active_fiber->data;
 }
@@ -141,17 +140,17 @@ void* fiber_yield(void *arg) {
   }
 }
 
-static
-__attribute__((noinline))
-void fiber_stack_note_unwound(struct fiber_stack* stack) {
-  stack->unwound = stack->top;
-}
+/* static */
+/* __attribute__((noinline)) */
+/* void fiber_stack_note_unwound(struct fiber_stack* stack) { */
+/*   stack->unwound = stack->top; */
+/* } */
 
-static
-__attribute__((noinline))
-void fiber_stack_rewind(struct fiber_stack* stack) {
-  stack->top = stack->unwound;
-}
+/* static */
+/* __attribute__((noinline)) */
+/* void fiber_stack_rewind(struct fiber_stack* stack) { */
+/*   stack->top = stack->unwound; */
+/* } */
 
 // Resumes a given fiber. Control is transferred to the fiber.
 __attribute__((noinline))
@@ -173,7 +172,7 @@ void* fiber_resume(fiber_t fiber, void *arg, fiber_result_t *result) {
     // ... then update the argument buffer.
     fiber->arg = arg;
     // ... and initiate the stack rewind.
-    fiber_stack_rewind(&fiber->stack);
+    //fiber_stack_rewind(&fiber->stack);
     asyncify_start_rewind(&fiber->stack);
   }
 
@@ -182,7 +181,7 @@ void* fiber_resume(fiber_t fiber, void *arg, fiber_result_t *result) {
   void *fiber_result = fiber->entry(arg);
   // The following function delimits the effects of fiber_yield.
   asyncify_stop_unwind();
-  fiber_stack_note_unwound(&fiber->stack);
+  //fiber_stack_note_unwound(&fiber->stack);
   // Check whether the fiber finished or suspended.
   if (fiber->state != YIELDING)
     fiber->state = DONE;
