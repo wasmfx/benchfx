@@ -66,6 +66,8 @@ wasi-sdk-20.0-linux.tar.gz
 binaryen-version_114/
 binaryen-version_114-x86_64-linux.tar.gz
 
-# Ignore legacy directories
+# Ignore legacy files
 c/
 x64-effects/
+Dockerfile
+docker.nix
