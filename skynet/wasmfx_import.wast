@@ -19,7 +19,7 @@
         (resume $ct (tag $yield $on_yield)
           (local.get $level)
           (local.get $num)
-          (cont.new $ct (ref.func $skynet)))
+          (cont.new $ct (ref.func $skynet))) ;; NOTE(dhil): replace $skynet by the actual function index.
         (return)
       ) ;; on_yield, stack is [ i64, ref $cyield ]
       (resume $cyield) ;; clean-up the stack, discard the dummy value

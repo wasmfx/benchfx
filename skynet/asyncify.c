@@ -63,8 +63,17 @@
 /*     asyncify_stop_rewind(); */
 /*   } */
 /* } */
+
+#include <wasi-io.h>
+
+static uint64_t arg_buffer = 0;
+
+__attribute__((noinline))
 void yield(uint64_t value) {
-  fiber_yield((void*)value);
+  arg_buffer = value;
+  fiber_yield(NULL);
+  wasi_print("\0"); // TODO(dhil): This statement seemingly prevents
+                    // asyncify from corrupting its own state.
 }
 
 /* __attribute__((noinline)) */
@@ -87,6 +96,7 @@ void yield(uint64_t value) {
 /*   return result; */
 /* } */
 
+__attribute__((noinline))
 extern uint64_t skynet(uint32_t, uint64_t);
 
 struct skynet_args {
@@ -94,18 +104,23 @@ struct skynet_args {
   uint64_t num;
 };
 
-static void* run_skynet(void *args) {
-  struct skynet_args *my_args = (struct skynet_args*)args;
-  return (void*)skynet(my_args->level, my_args->num);
+static uint64_t* run_skynet(struct skynet_args *args) {
+  arg_buffer = skynet(args->level, args->num);
+  return NULL;
 }
 
-//__attribute__((noinline))
+__attribute__((noinline))
 uint64_t handle(uint32_t level, uint64_t num) {
+  uint64_t *p, result;
   fiber_result_t status;
-  fiber_t fiber = fiber_alloc(run_skynet, NULL);
+  fiber_t fiber = fiber_alloc((fiber_entry_point_t)run_skynet, NULL);
   struct skynet_args args = { level, num };
 
-  uint64_t result = (uint64_t)fiber_resume(fiber, &args, &status);
-  fiber_resume(fiber, NULL, &status); // discards the dummy value
+  (void)fiber_resume(fiber, &args, &status);
+  result = arg_buffer;
+
+  // If yield was invoked, finish the residual fiber computation.
+  if (!fiber_is_done(fiber))
+    (void)fiber_resume(fiber, &args, &status); // discards the dummy value
   return result;
 }

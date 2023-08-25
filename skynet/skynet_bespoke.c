@@ -1,7 +1,6 @@
 // Bespoke implementation of the Skynet benchmark.  This
 // implementation does not use any form of coroutines.
 
-#include <stdio.h>
 #include <stdint.h>
 #include <inttypes.h>
 
@@ -21,6 +20,5 @@ uint64_t skynet(int level, uint64_t num) {
 }
 
 int main(void) {
-  printf("%" PRIu64 "\n", skynet(num_levels, 0));
-  return 0;
+  return verify(skynet(num_levels, 0), reference);
 }

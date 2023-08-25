@@ -3,7 +3,6 @@
 
 #include <stdio.h>
 #include <stdint.h>
-#include <inttypes.h>
 
 #include "parameters.h"
 
@@ -15,6 +14,7 @@ extern
 __attribute__((import_module("env"),import_name("handle")))
 uint64_t handle(uint32_t, uint64_t);
 
+__attribute__((noinline))
 __attribute__((export_name("skynet")))
 uint64_t skynet(uint32_t level, uint64_t num) {
   if (level == 0) {
@@ -33,6 +33,6 @@ uint64_t skynet(uint32_t level, uint64_t num) {
 }
 
 int main(void) {
-  printf("%" PRIu64 "\n", skynet(num_levels, 0));
-  return 0;
+  int64_t my_number = skynet(6, 0);
+  return verify(my_number, reference);
 }
