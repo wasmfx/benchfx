@@ -67,6 +67,7 @@ binaryen-version_114/
 binaryen-version_114-x86_64-linux.tar.gz
 
 # Ignore legacy files
+go/
 c/
 x64-effects/
 Dockerfile
