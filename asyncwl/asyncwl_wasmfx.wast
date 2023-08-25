@@ -264,7 +264,9 @@
     ) ;; on_return
   )
 
-  (func $free_async_worker (param $key i32))
+  (func $free_async_worker (param $key i32)
+    (table.set $conts (local.get $key) (ref.null $cawt))
+  )
 
   (export "memory" (memory 0))
   (export "_start" (func 5))

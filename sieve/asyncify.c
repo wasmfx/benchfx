@@ -18,7 +18,7 @@ static void* filter(void *prime) {
 
 fiber_t filter_spawn(uint32_t prime) {
   fiber_result_t status;
-  fiber_t fiber = fiber_alloc((fiber_entry_point_t)filter, NULL);
+  fiber_t fiber = fiber_alloc((fiber_entry_point_t)filter);
   fiber_resume(fiber, &prime, &status); // Discard NULL result.
   return fiber;
 }

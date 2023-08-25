@@ -1,7 +1,6 @@
 // Asyncify fiber-based implementation of the abstract state operations.
 
 #include <stdlib.h>
-#include <stdbool.h>
 #include <stdint.h>
 
 #include <fiber.h>
@@ -30,13 +29,13 @@ void state_put(int32_t value) {
 __attribute__((noinline))
 int32_t handle_count(int32_t value, const int32_t limit) {
   fiber_result_t status;
-  fiber_t fiber = fiber_alloc((fiber_entry_point_t)count, NULL);
-  void *result = fiber_resume(fiber, (void*)limit, &status);
+  fiber_t fiber = fiber_alloc((fiber_entry_point_t)count);
+  void *result = fiber_resume(fiber, (void*)((intptr_t)limit), &status);
   while (!fiber_is_done(fiber)) {
     cmd_t *cmd = (cmd_t*)result;
     switch (cmd->op) {
     case GET:
-      result = fiber_resume(fiber, (void*)value, &status);
+      result = fiber_resume(fiber, (void*)((intptr_t)value), &status);
       break;
     case PUT:
       value = cmd->value;

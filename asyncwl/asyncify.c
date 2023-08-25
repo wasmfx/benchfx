@@ -15,7 +15,7 @@ void* async_worker(void*);
 __attribute__((noinline))
 __attribute__((export_name("alloc_async_worker")))
 void alloc_async_worker(uint32_t key) {
-  store[key] = fiber_alloc(async_worker, NULL);
+  store[key] = fiber_alloc(async_worker);
 }
 
 __attribute__((noinline))
@@ -36,15 +36,3 @@ __attribute__((export_name("free_async_worker")))
 void free_async_worker(uint32_t key) {
   fiber_free(store[key]);
 }
-
-/* __attribute__((noinline)) */
-/* __attribute__((export_name("store_put"))) */
-/* void store_put(uint32_t key, fiber_t fiber) { */
-/*   store[key] = fiber; */
-/* } */
-
-/* __attribute__((noinline)) */
-/* __attribute__((export_name("store_get"))) */
-/* fiber_t store_get(uint32_t key) { */
-/*   return store[key]; */
-/* } */

@@ -67,8 +67,6 @@ struct fiber {
   fiber_entry_point_t entry;
   // Payload buffer.
   void *arg;
-  // Fiber local data.
-  void *data;
 };
 
 // Allocates a fiber stack of size stack_size.
@@ -94,20 +92,19 @@ void fiber_stack_free(struct fiber_stack fiber_stack) {
 // and related functions, as they can cause asyncify to corrupt its
 // own state. See `wasi-io.h` for asyncify-safe printing functions.
 __attribute__((noinline))
-fiber_t fiber_sized_alloc(size_t stack_size, fiber_entry_point_t entry, void *local_data) {
+fiber_t fiber_sized_alloc(size_t stack_size, fiber_entry_point_t entry) {
   fiber_t fiber = (fiber_t)malloc(sizeof(struct fiber));
   fiber->stack = fiber_stack_alloc(stack_size);
   fiber->state = ACTIVE;
   fiber->entry = entry;
   fiber->arg = NULL;
-  fiber->data = local_data;
   return fiber;
 }
 
 // Allocates a fiber object with the default stack size.
 __attribute__((noinline))
-fiber_t fiber_alloc(fiber_entry_point_t entry, void *local_data) {
-  return fiber_sized_alloc(FIBER_DEFAULT_STACK_SIZE, entry, local_data);
+fiber_t fiber_alloc(fiber_entry_point_t entry) {
+  return fiber_sized_alloc(FIBER_DEFAULT_STACK_SIZE, entry);
 }
 
 // Frees a fiber object.
@@ -115,12 +112,6 @@ __attribute__((noinline))
 void fiber_free(fiber_t fiber) {
   fiber_stack_free(fiber->stack);
   free(fiber);
-}
-
-// Retrieves the fiber local data. Must be called from within a fiber.
-__attribute__((noinline))
-void *fiber_get_local_data() {
-  return active_fiber->data;
 }
 
 // Yields control from within a fiber computation to whichever point
@@ -189,13 +180,7 @@ void* fiber_resume(fiber_t fiber, void *arg, fiber_result_t *result) {
   // Restore the previously executing fiber.
   active_fiber = prev;
   // Signal success.
-  *result = FIBER_OK;
+  *result = fiber->state == YIELDING ? FIBER_YIELD : FIBER_OK;
   return fiber->state == YIELDING ? fiber->arg : fiber_result;
 
-}
-
-// Checks whether a given fiber has finished.
-__attribute__((noinline))
-bool fiber_is_done(fiber_t fiber) {
-  return fiber->state == DONE;
 }

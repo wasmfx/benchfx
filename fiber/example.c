@@ -57,12 +57,13 @@ int main(void) {
 
   // Run "hello world" example.
   char *response;
-  fiber_t door = fiber_alloc(knock_knock, NULL);
+  fiber_t door = fiber_alloc(knock_knock);
   char *responses[] = { "Knock! Knock!\n", "Wasm\n", "WebAssembly!\n" };
+  size_t len = sizeof(responses) / sizeof(char**);
 
-  for (int i = 0; i < sizeof(responses) / sizeof(char**); i++) {
+  for (int i = 0; i < len; i++) {
     response = (char*)fiber_resume(door, responses[i], &status);
-    assert(status == FIBER_OK);
+    assert(i+1 == len ? status == FIBER_OK : status == FIBER_YIELD);
     printf("%s\n", response);
   }
 
@@ -72,7 +73,7 @@ int main(void) {
   fiber_free(door);
 
   // Run calculator example.
-  fiber_t calculator = fiber_alloc(calc, NULL);
+  fiber_t calculator = fiber_alloc(calc);
 
   calc_op_t ops[] = {INIT, MUL, MUL, ADD, ADD, ANS};
   uint32_t numbers[] = {1, 4, 4, 32, 16, 0};

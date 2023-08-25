@@ -32,7 +32,9 @@ uint64_t skynet(uint32_t level, uint64_t num) {
   }
 }
 
+#include <inttypes.h>
 int main(void) {
   int64_t my_number = skynet(6, 0);
+  printf("%" PRIu64 "\n", my_number);
   return verify(my_number, reference);
 }
