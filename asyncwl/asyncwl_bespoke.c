@@ -7,29 +7,50 @@
 
 #include "parameters.h"
 
-extern
-__attribute__((import_module("env"), import_name("async_worker_yield")))
-uint32_t async_worker_yield(uint32_t);
+typedef struct sm {
+  enum { NORMAL, YIELDING } state;
+  uint32_t arg;
+  uint32_t value;
+} sm_t;
 
-extern
+static sm_t workers[active_conn];
+static sm_t *active_worker;
+
+void* async_worker(void *);
+
+uint32_t async_worker_yield(uint32_t arg) {
+  switch (active_worker->state) {
+  case 0:
+    active_worker->value = arg;
+    active_worker->state = YIELDING;
+    return 0;
+  case 1:
+    active_worker->state = NORMAL;
+    return active_worker->value;
+  }
+}
+
 __attribute__((import_module("env"), import_name("alloc_async_worker")))
-void alloc_async_worker(uint32_t);
+void alloc_async_worker(uint32_t key) {
+  workers[key] = (struct sm){ NORMAL, 0, 0 };
+}
 
 extern
 __attribute__((import_module("env"), import_name("resume_async_worker")))
-uint32_t resume_async_worker(uint32_t, uint32_t);
+uint32_t resume_async_worker(uint32_t key, uint32_t value) {
+  active_worker = &workers[key];
+  if (active_worker->state == YIELDING)
+    active_worker->value = value;
+  else
+    active_worker->arg = value;
+
+  uint32_t result = (uint32_t)async_worker((void*)((intptr_t)active_worker->arg));
+  return active_worker->state == NORMAL ? result : active_worker->value;
+}
 
 extern
 __attribute__((import_module("env"), import_name("free_async_worker")))
-void free_async_worker(uint32_t);
-
-/* extern */
-/* __attribute__((import_module("env"), import_name("store_put"))) */
-/* void store_put(uint32_t, opaque_t); */
-
-/* extern */
-/* __attribute__((import_module("env"), import_name("store_get"))) */
-/* opaque_t store_get(uint32_t); */
+void free_async_worker(uint32_t _unused) {}
 
 static
 __attribute__((noinline))
@@ -58,9 +79,20 @@ void stack_use(long totalkb) {
 __attribute__((noinline))
 __attribute__((export_name("async_worker")))
 void* async_worker(void *arg) {
-  uint32_t kb = async_worker_yield((uint32_t)arg);
-  stack_use(kb);
-  return (void*)((intptr_t)1);
+  uint32_t kb;
+  switch (active_worker->state) {
+  case 0:
+    kb = async_worker_yield((uint32_t)arg);
+    if (active_worker->state == 1) return NULL;
+  case 1:
+    kb = async_worker_yield((uint32_t)arg);
+    if (active_worker->state == 0) {
+      stack_use(kb);
+      return (void*)((intptr_t)1);
+    }
+  default:
+    return NULL;
+  }
 }
 
 static
