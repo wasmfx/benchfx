@@ -2,6 +2,9 @@
 #ifndef __FIBER_H
 #define __FIBER_H
 
+#include <stdlib.h>
+#include <stdbool.h>
+
 /** The signature of a fiber entry point. **/
 typedef void* (*fiber_entry_point_t)(void*);
 
