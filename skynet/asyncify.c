@@ -46,5 +46,6 @@ uint64_t handle(uint32_t level, uint64_t num) {
   // If yield was invoked, finish the residual fiber computation.
   if (status == FIBER_YIELD)
     (void)fiber_resume(fiber, &args, &status); // discards the dummy value
+  fiber_free(fiber);
   return result;
 }
