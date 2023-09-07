@@ -31,7 +31,7 @@ int32_t handle_count(int32_t value, const int32_t limit) {
   fiber_result_t status;
   fiber_t fiber = fiber_alloc((fiber_entry_point_t)count);
   void *result = fiber_resume(fiber, (void*)((intptr_t)limit), &status);
-  while (!fiber_is_done(fiber)) {
+  while (status == FIBER_YIELD) {
     cmd_t *cmd = (cmd_t*)result;
     switch (cmd->op) {
     case GET:
@@ -43,6 +43,7 @@ int32_t handle_count(int32_t value, const int32_t limit) {
       break;
     }
   }
+  fiber_free(fiber);
   return value;
 }
 
