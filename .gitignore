@@ -61,10 +61,9 @@ dkms.conf
 .\#*
 
 # Ignore local installations
-wasi-sdk-20.0/
-wasi-sdk-20.0-linux.tar.gz
-binaryen-version_114/
-binaryen-version_114-x86_64-linux.tar.gz
+wasi-sdk-*/
+binaryen-version_*/
+mimalloc-*/
 
 # Ignore legacy files
 go/
