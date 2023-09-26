@@ -9,6 +9,7 @@ To run the benchmark suite you need the following tools:
 
 * hyperfine
 * a release build of wasmfxtime (https://github.com/wasmfx/wasmfxtime)
+* the WasmFX reference interpreter (https://github.com/wasmfx/specfx)
 * binaryen
 * mimalloc
 * WASI SDK
