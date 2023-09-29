@@ -5,47 +5,42 @@
 #include <stdint.h>
 //#include <inttypes.h>
 
+#include <wasm.h>
+
 #include "parameters.h"
 
 extern
-__attribute__((import_module("env"), import_name("async_worker_yield")))
+__wasm_import("env", "async_worker_yield")
 uint32_t async_worker_yield(uint32_t);
 
 extern
-__attribute__((import_module("env"), import_name("alloc_async_worker")))
+__wasm_import("env", "alloc_async_worker")
 void alloc_async_worker(uint32_t);
 
 extern
-__attribute__((import_module("env"), import_name("resume_async_worker")))
+__wasm_import("env", "resume_async_worker")
 uint32_t resume_async_worker(uint32_t, uint32_t);
 
 extern
-__attribute__((import_module("env"), import_name("free_async_worker")))
+__wasm_import("env", "free_async_worker")
 void free_async_worker(uint32_t);
 
-/* extern */
-/* __attribute__((import_module("env"), import_name("store_put"))) */
-/* void store_put(uint32_t, opaque_t); */
-
-/* extern */
-/* __attribute__((import_module("env"), import_name("store_get"))) */
-/* opaque_t store_get(uint32_t); */
 
 static
-__attribute__((noinline))
+__noinline
 void* as_stack_address(void* p) {
   return p;
 }
 
 static
-__attribute__((noinline))
+__noinline
 void* get_stack_top(void) {
   void* top = NULL;
   return as_stack_address(&top);
 }
 
 static
-__attribute__((noinline))
+__noinline
 void stack_use(long totalkb) {
   uint8_t* sp = (uint8_t*)get_stack_top();
   size_t page_size = 4096;
@@ -55,8 +50,8 @@ void stack_use(long totalkb) {
   }
 }
 
-__attribute__((noinline))
-__attribute__((export_name("async_worker")))
+__noinline
+__wasm_export("async_worker")
 void* async_worker(void *arg) {
   uint32_t kb = async_worker_yield((uint32_t)arg);
   stack_use(kb);
@@ -64,7 +59,7 @@ void* async_worker(void *arg) {
 }
 
 static
-__attribute__((noinline))
+__noinline
 uint32_t async_wl(void) {
   //printf("async_test1M set up...\n");
   //opaque_t* rs = (opaque_t*)malloc(sizeof(opaque_t) * active_conn);
@@ -89,11 +84,10 @@ uint32_t async_wl(void) {
   size_t total_kb = total_conn * stack_kb;
   double total_mb = (double)(total_conn * stack_kb) / 1024.0;
   //printf("total stack used: %.3fmb, count=%" PRIu32 "\n", total_mb, count);
-  return (uint32_t)count;
+  return count;
 }
 
 int main(void) {
   return verify(async_wl(), reference);
-  return 0;
 }
 

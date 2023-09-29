@@ -1,6 +1,7 @@
 // An abstract effectful implementation of stateful counting.
 
 #include <stdint.h>
+#include <wasm.h>
 
 #include "parameters.h"
 
@@ -16,8 +17,8 @@ extern
 __attribute__((import_module("env"),import_name("handle_count")))
 int32_t handle_count(int32_t, const int32_t);
 
-__attribute__((noinline))
-__attribute__((export_name("count")))
+__noinline
+__wasm_export("count")
 int32_t count(const int32_t limit) {
   for (; state_get() < limit; state_put(state_get() + 1));
   return state_get();

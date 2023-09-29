@@ -3,19 +3,22 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <inttypes.h>
+
+#include <wasm.h>
 
 #include "parameters.h"
 
 extern
-__attribute__((import_module("env"),import_name("yield")))
+__wasm_import("env", "yield")
 void yield(uint64_t);
 
 extern
-__attribute__((import_module("env"),import_name("handle")))
+__wasm_import("env", "handle")
 uint64_t handle(uint32_t, uint64_t);
 
-__attribute__((noinline))
-__attribute__((export_name("skynet")))
+__noinline
+__wasm_export("skynet")
 uint64_t skynet(uint32_t level, uint64_t num) {
   if (level == 0) {
     yield(num);
@@ -32,9 +35,9 @@ uint64_t skynet(uint32_t level, uint64_t num) {
   }
 }
 
-#include <inttypes.h>
+
 int main(void) {
   int64_t my_number = skynet(6, 0);
-  printf("%" PRIu64 "\n", my_number);
+  //printf("%" PRIu64 "\n", my_number);
   return verify(my_number, reference);
 }

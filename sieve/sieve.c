@@ -5,21 +5,23 @@
 #include <stdint.h>
 #include <inttypes.h>
 
+#include <wasm.h>
+
 #include "parameters.h"
 
 typedef void* filter_t;
 
 extern
-__attribute__((import_module("env"),import_name("filter_spawn")))
+__wasm_import("env", "filter_spawn")
 filter_t filter_spawn(uint32_t prime);
 extern
-__attribute__((import_module("env"),import_name("filter_send")))
+__wasm_import("env", "filter_send")
 bool filter_send(filter_t receiver, uint32_t candidate);
 extern
-__attribute__((import_module("env"),import_name("filter_shutdown")))
+__wasm_import("env", "filter_shutdown")
 void filter_shutdown(filter_t receiver);
 
-__attribute__((noinline))
+__noinline
 size_t sieve(uint32_t *primes, const size_t len) {
   size_t p = 0;
   uint64_t i = 2;

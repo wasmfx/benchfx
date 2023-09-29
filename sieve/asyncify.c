@@ -5,6 +5,7 @@
 #include <inttypes.h>
 
 #include <fiber.h>
+#include <wasm.h>
 
 static void* filter(void *prime) {
   uint32_t my_prime = *((uint32_t*)prime);
@@ -16,6 +17,7 @@ static void* filter(void *prime) {
   return NULL;
 }
 
+__noinline
 fiber_t filter_spawn(uint32_t prime) {
   fiber_result_t status;
   fiber_t fiber = fiber_alloc((fiber_entry_point_t)filter);
@@ -23,11 +25,13 @@ fiber_t filter_spawn(uint32_t prime) {
   return fiber;
 }
 
+__noinline
 bool filter_send(fiber_t receiver, uint32_t candidate) {
   fiber_result_t status;
   return (bool)fiber_resume(receiver, &candidate, &status);
 }
 
+__noinline
 void filter_shutdown(fiber_t receiver) {
   fiber_result_t status;
   uint32_t z = 0;
