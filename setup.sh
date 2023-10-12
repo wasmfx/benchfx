@@ -78,9 +78,19 @@ function install_wasi_sdk()
     rm -f $(basename $WASI_SDK_URL)
 }
 
+function install_binaryenfx()
+{
+    git clone git@github.com:frank-emrich/binaryen.git binaryenfx
+    cd binaryenfx
+    git checkout -b wasmfx-instrs -t origin/wasmfx-instrs
+    git submodule init
+    git submodule update
+    cmake . && make
+}
+
 function main()
 {
-    install_binaryen
+    install_binaryenfx
     install_mimalloc
     install_wasi_sdk
 }
