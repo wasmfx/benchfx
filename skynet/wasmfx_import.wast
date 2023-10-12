@@ -6,12 +6,15 @@
   (type $fyield (func (result i64)))
   (type $cyield (cont $fyield))
 
+  (func $skynet (import "skynet" "skynet") (param i32 i64) (result i64))
+  (elem declare func $skynet)
+
   (tag $yield (param i64))
 
-  (func $wasmfx_yield (export "wasmfx_yield") (param $i i64)
+  (func $wasmfx_yield (export "yield") (param $i i64)
     (suspend $yield (local.get $i)))
 
-  (func $wasmfx_handle (export "wasmfx_handle")
+  (func $wasmfx_handle (export "handle")
     (param $level i32)
     (param $num i64)
     (result i64)
