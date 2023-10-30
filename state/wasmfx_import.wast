@@ -12,21 +12,19 @@
   (type $ft (func (result i32)))
   (type $kt (cont $ft))
 
+  (func $count (import "state" "count") (param i32) (result i32))
+  (elem declare func $count)
+
   (tag $get (result i32))
   (tag $put (param i32))
 
-  (elem declare func $count) ;; NOTE(dhil): Remove this from the assembled file!
-
-  (func $count (param i32) (result i32) ;; NOTE(dhil): Remove this from the assembled file
-    (unreachable))
-
-  (func $handle_count (param $state i32) (param $limit i32) (result i32)
+  (func $handle_count (export "handle_count") (param $state i32) (param $limit i32) (result i32)
     (local $k (ref $kt))
     (local $kget (ref $cget))
     (local.set $k
        (cont.bind $cinit $kt
           (local.get $limit)
-          (cont.new $cinit (ref.func $count)))) ;; NOTE(dhil): Substitute $count for the actual index!
+          (cont.new $cinit (ref.func $count))))
     (loop $while (result i32)
       (block $on_done (result i32)
         (block $on_put (result i32 (ref $cput))
@@ -47,7 +45,7 @@
   )
 
   ;; version without using cont.bind
-  (func $handle_count_nobind (param $state i32) (param $limit i32) (result i32)
+  (func $handle_count_nobind (export "handle_count_nobind") (param $state i32) (param $limit i32) (result i32)
     (local $kput (ref null $cput))
     (local $kget (ref null $cget))
     (block $on_done (result i32)
@@ -57,7 +55,7 @@
           (block $on_get1 (result (ref $cget))
             (resume $cinit (tag $get $on_get1) (tag $put $on_put1)
               (local.get $limit)
-              (cont.new $cinit (ref.func $count))) ;; NOTE(dhil): replace $count by the actual function index.
+              (cont.new $cinit (ref.func $count)))
             (br $on_done)
           ) ;; on_get1 [ (ref $cget) ]
           (local.set $kget)
@@ -97,10 +95,10 @@
     (return)
   )
 
-  (func $state_get (result i32)
+  (func $state_get (export "state_get") (result i32)
     (suspend $get))
 
-  (func $state_put (param $value i32)
+  (func $state_put (export "state_put") (param $value i32)
     (suspend $put (local.get $value))
   )
 )

@@ -13,7 +13,7 @@
   (elem declare func $filter)
 
   ;; The filter function
-  (func $filter (param $my_prime i32) (result i32)
+  (func $filter (export "filter") (param $my_prime i32) (result i32)
     (local $divisible i32)
     (local $candidate i32)
     (local.set $candidate (suspend $init)) ;; retrieve the first candidate number.
@@ -32,7 +32,7 @@
     ) ;; end
     (return (i32.const 0)))
   ;; filter_spawn
-  (func $filter_spawn (param $prime i32) (result i32)
+  (func $filter_spawn (export "filter_spawn") (param $prime i32) (result i32)
     (local $fiber_idx i32)
     (local $fiber (ref $cfilter))
     (local.set $fiber (cont.new $cfilter (ref.func $filter)))
@@ -56,7 +56,7 @@
     (return (local.get $fiber_idx)) ;; return fiber index
   )
   ;; filter_send
-  (func $filter_send (param $fiber_idx i32) (param $candidate i32) (result i32)
+  (func $filter_send (export "filter_send") (param $fiber_idx i32) (param $candidate i32) (result i32)
     (local $next_k (ref $cfilter))
     (block $on_yield (result i32 (ref $cfilter))
       (resume $cfilter (tag $yield $on_yield)
@@ -70,7 +70,7 @@
     (return)
   )
   ;; filter_shutdown
-  (func $filter_shutdown (param $fiber_idx i32)
+  (func $filter_shutdown (export "filter_shutdown") (param $fiber_idx i32)
     (resume $cfilter (i32.const 0)
                      (table.get $conts (local.get $fiber_idx)))
     (drop)

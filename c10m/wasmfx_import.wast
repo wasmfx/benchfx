@@ -4,10 +4,13 @@
   (type $awt (func (param i32) (result i32)))
   (type $cawt (cont $awt))
 
+  (func $async_worker (import "c10m" "async_worker") (param i32) (result i32))
+
   (tag $yield (param i32) (result i32))
 
   (table $conts 10000 (ref null $cawt)) ;; Update size to match dataset size.
 
+  (elem declare func $async_worker)
   (elem declare func $async_worker_yield)
   (elem declare func $alloc_async_worker)
   (elem declare func $resume_async_worker)
@@ -15,8 +18,6 @@
 
   ;; (elem declare func $store_put)
   ;; (elem declare func $store_get)
-
-  (elem declare func $async_worker) ;; NOTE(dhil): remove from assembled binary.
 
   ;; (func $store_get (export "store_get") (param $key i32) (result (ref null $cawt))
   ;;   (table.get $conts (local.get $key))
@@ -30,15 +31,12 @@
     (suspend $yield (local.get $value))
   )
 
-  (func $async_worker (param i32) (result i32)
-    (unreachable))
-
-  (func $alloc_async_worker (param $key i32)
+  (func $alloc_async_worker (export "alloc_async_worker") (param $key i32)
     (table.set $conts (local.get $key)
        (cont.new $cawt (ref.func $async_worker))) ;; NOTE(dhil): replace $async_worker by the actual function index.
   )
 
-  (func $resume_async_worker (param $key i32) (param $value i32) (result i32)
+  (func $resume_async_worker (export "resume_async_worker") (param $key i32) (param $value i32) (result i32)
     (local $k (ref null $cawt))
     (block $on_return (result i32)
       (block $on_yield (result i32 (ref $cawt))
@@ -50,5 +48,5 @@
     ) ;; on_return
   )
 
-  (func $free_async_worker (param $key i32))
+  (func $free_async_worker (export "free_async_worker") (param $key i32))
 )

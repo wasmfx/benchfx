@@ -6,15 +6,15 @@
 #include "parameters.h"
 
 extern
-__attribute__((import_module("env"),import_name("state_get")))
+__wasm_import("env", "state_get")
 int32_t state_get(void);
 
 extern
-__attribute__((import_module("env"),import_name("state_put")))
+__wasm_import("env", "state_put")
 void state_put(int32_t);
 
 extern
-__attribute__((import_module("env"),import_name("handle_count")))
+__wasm_import("env", "handle_count")
 int32_t handle_count(int32_t, const int32_t);
 
 __noinline
