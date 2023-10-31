@@ -80,6 +80,10 @@ function install_wasi_sdk()
 
 function install_binaryenfx()
 {
+    if [[ -d "binaryenfx" ]]; then
+        echo "info: binaryenfx seems to be already installed... skipping..."
+        return
+    fi
     git clone git@github.com:frank-emrich/binaryen.git binaryenfx
     cd binaryenfx
     git checkout -b wasmfx-instrs -t origin/wasmfx-instrs
