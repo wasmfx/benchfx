@@ -33,6 +33,9 @@ extern
 __wasm_import("asyncify", "stop_rewind")
 void asyncify_stop_rewind(void);
 
+// The default stack size is 4096 bytes.
+static const size_t FIBER_DEFAULT_STACK_SIZE = 4096;
+
 // We track the currently active fiber via this global variable.
 static volatile fiber_t active_fiber = NULL;
 
