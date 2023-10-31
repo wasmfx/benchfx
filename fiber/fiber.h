@@ -10,9 +10,6 @@ typedef void* (*fiber_entry_point_t)(void*);
 /** The abstract type of a fiber object. **/
 typedef struct fiber* fiber_t;
 
-/** The default stack size is 4096 bytes. **/
-#define FIBER_DEFAULT_STACK_SIZE ((size_t)4096)
-
 /** Allocates a new fiber with the default stack size. **/
 fiber_t fiber_alloc(fiber_entry_point_t entry);
 /** Reclaims the memory occupied by a fiber object. **/
@@ -23,7 +20,7 @@ void fiber_free(fiber_t fiber);
 void* fiber_yield(void *arg);
 
 /** Possible status codes for `fiber_resume`. **/
-typedef enum { FIBER_OK, FIBER_YIELD, FIBER_ERROR } fiber_result_t;
+typedef enum { FIBER_OK = 0, FIBER_YIELD = 1, FIBER_ERROR = 2 } fiber_result_t;
 
 /** Resumes a given `fiber` with argument `arg`. **/
 void* fiber_resume(fiber_t fiber, void *arg, fiber_result_t *result);
