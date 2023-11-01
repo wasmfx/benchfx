@@ -4,13 +4,18 @@
   (type $filter  (func (param i32) (result i32)))
   (type $cfilter (cont $filter))
 
+  ;; (func $filter (import "benchmark" "filter") (param i32) (result i32))
+
   (tag $init  (result i32))
   (tag $yield (param i32) (result i32))
 
   (global $next_slot (mut i32) (i32.const 0))
-  (table $conts 10 (ref null $cfilter)) ;; Update size to match dataset size.
+  (table $conts 8100 (ref null $cfilter)) ;; Update size to match dataset size.
 
   (elem declare func $filter)
+
+  ;; (func $filter_yield (export "filter_yield") (param $result i32) (result i32)
+  ;;   (suspend $yield (local.get $result)))
 
   ;; The filter function
   (func $filter (export "filter") (param $my_prime i32) (result i32)

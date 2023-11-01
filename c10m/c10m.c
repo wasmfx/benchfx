@@ -10,19 +10,19 @@
 #include "parameters.h"
 
 extern
-__wasm_import("env", "async_worker_yield")
+__wasm_import("impl", "async_worker_yield")
 uint32_t async_worker_yield(uint32_t);
 
 extern
-__wasm_import("env", "alloc_async_worker")
+__wasm_import("impl", "alloc_async_worker")
 void alloc_async_worker(uint32_t);
 
 extern
-__wasm_import("env", "resume_async_worker")
+__wasm_import("impl", "resume_async_worker")
 uint32_t resume_async_worker(uint32_t, uint32_t);
 
 extern
-__wasm_import("env", "free_async_worker")
+__wasm_import("impl", "free_async_worker")
 void free_async_worker(uint32_t);
 
 

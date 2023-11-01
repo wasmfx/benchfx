@@ -1,5 +1,6 @@
 // An implementation of Sieve of Eratosthenes using fibers.
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -12,14 +13,30 @@
 typedef void* filter_t;
 
 extern
-__wasm_import("env", "filter_spawn")
+__wasm_import("impl", "filter_spawn")
 filter_t filter_spawn(uint32_t prime);
 extern
-__wasm_import("env", "filter_send")
+__wasm_import("impl", "filter_send")
 bool filter_send(filter_t receiver, uint32_t candidate);
 extern
-__wasm_import("env", "filter_shutdown")
+__wasm_import("impl", "filter_shutdown")
 void filter_shutdown(filter_t receiver);
+
+/* __noinline */
+/* __wasm_export("filter") */
+/* void* filter(void *prime) { */
+/*   uint32_t my_prime = *((uint32_t*)prime); */
+/*   printf("HERE\n"); */
+/*   uint32_t candidate = filter_yield(false); */
+/*   printf("THERE\n"); */
+/*   while (candidate != 0) { */
+/*     bool result = candidate % my_prime == 0 ? true : false; */
+/*     printf("BOO\n"); */
+/*     candidate = filter_yield(result); */
+/*     printf("BAH\n"); */
+/*   } */
+/*   return NULL; */
+/* } */
 
 __noinline
 size_t sieve(uint32_t *primes, const size_t len) {

@@ -10,11 +10,11 @@
 #include "parameters.h"
 
 extern
-__wasm_import("env", "yield")
+__wasm_import("impl", "yield")
 void yield(uint64_t);
 
 extern
-__wasm_import("env", "handle")
+__wasm_import("impl", "handle")
 uint64_t handle(uint32_t, uint64_t);
 
 __noinline

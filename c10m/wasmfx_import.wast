@@ -4,7 +4,7 @@
   (type $awt (func (param i32) (result i32)))
   (type $cawt (cont $awt))
 
-  (func $async_worker (import "c10m" "async_worker") (param i32) (result i32))
+  (func $async_worker (import "benchmark" "async_worker") (param i32) (result i32))
 
   (tag $yield (param i32) (result i32))
 

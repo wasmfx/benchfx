@@ -18,6 +18,13 @@ static void* filter(void *prime) {
 }
 
 __noinline
+__wasm_export("filter_yield")
+uint32_t filter_yield(bool result) {
+  return *((uint32_t*)fiber_yield((void*)result));
+}
+
+__noinline
+__wasm_export("filter_spawn")
 fiber_t filter_spawn(uint32_t prime) {
   fiber_result_t status;
   fiber_t fiber = fiber_alloc((fiber_entry_point_t)filter);
@@ -26,12 +33,14 @@ fiber_t filter_spawn(uint32_t prime) {
 }
 
 __noinline
+__wasm_export("filter_send")
 bool filter_send(fiber_t receiver, uint32_t candidate) {
   fiber_result_t status;
   return (bool)fiber_resume(receiver, &candidate, &status);
 }
 
 __noinline
+__wasm_export("filter_shutdown")
 void filter_shutdown(fiber_t receiver) {
   fiber_result_t status;
   uint32_t z = 0;

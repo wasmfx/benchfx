@@ -6,7 +6,7 @@
   (type $fyield (func (result i64)))
   (type $cyield (cont $fyield))
 
-  (func $skynet (import "skynet" "skynet") (param i32 i64) (result i64))
+  (func $skynet (import "benchmark" "skynet") (param i32 i64) (result i64))
   (elem declare func $skynet)
 
   (tag $yield (param i64))
@@ -22,7 +22,7 @@
         (resume $ct (tag $yield $on_yield)
           (local.get $level)
           (local.get $num)
-          (cont.new $ct (ref.func $skynet))) ;; NOTE(dhil): replace $skynet by the actual function index.
+          (cont.new $ct (ref.func $skynet)))
         (return)
       ) ;; on_yield, stack is [ i64, ref $cyield ]
       (resume $cyield) ;; clean-up the stack, discard the dummy value
