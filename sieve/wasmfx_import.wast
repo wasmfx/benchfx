@@ -4,7 +4,7 @@
   (type $filter  (func (param i32) (result i32)))
   (type $cfilter (cont $filter))
 
-  ;; (func $filter (import "benchmark" "filter") (param i32) (result i32))
+  (func $filter (import "benchmark" "filter") (param i32) (result i32))
 
   (tag $init  (result i32))
   (tag $yield (param i32) (result i32))
@@ -14,28 +14,28 @@
 
   (elem declare func $filter)
 
-  ;; (func $filter_yield (export "filter_yield") (param $result i32) (result i32)
-  ;;   (suspend $yield (local.get $result)))
+  (func $filter_yield (export "filter_yield") (param $result i32) (result i32)
+    (suspend $yield (local.get $result)))
 
   ;; The filter function
-  (func $filter (export "filter") (param $my_prime i32) (result i32)
-    (local $divisible i32)
-    (local $candidate i32)
-    (local.set $candidate (suspend $init)) ;; retrieve the first candidate number.
-    (block $end
-      (loop $while
-        (if (i32.eq (local.get $candidate) (i32.const 0))
-          (then (br $end))
-          (else))
-        (local.set $divisible (i32.eqz
-                                  (i32.rem_u
-                                    (local.get $candidate)
-                                    (local.get $my_prime))))
-        (local.set $candidate (suspend $yield (local.get $divisible))) ;; communicate the result and retrieve the next candidate.
-        (br $while)
-      ) ;; loop
-    ) ;; end
-    (return (i32.const 0)))
+  ;; (func $filter (export "filter") (param $my_prime i32) (result i32)
+  ;;   (local $divisible i32)
+  ;;   (local $candidate i32)
+  ;;   (local.set $candidate (suspend $init)) ;; retrieve the first candidate number.
+  ;;   (block $end
+  ;;     (loop $while
+  ;;       (if (i32.eq (local.get $candidate) (i32.const 0))
+  ;;         (then (br $end))
+  ;;         (else))
+  ;;       (local.set $divisible (i32.eqz
+  ;;                                 (i32.rem_u
+  ;;                                   (local.get $candidate)
+  ;;                                   (local.get $my_prime))))
+  ;;       (local.set $candidate (suspend $yield (local.get $divisible))) ;; communicate the result and retrieve the next candidate.
+  ;;       (br $while)
+  ;;     ) ;; loop
+  ;;   ) ;; end
+  ;;   (return (i32.const 0)))
   ;; filter_spawn
   (func $filter_spawn (export "filter_spawn") (param $prime i32) (result i32)
     (local $fiber_idx i32)

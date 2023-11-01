@@ -7,15 +7,19 @@
 #include <fiber.h>
 #include <wasm.h>
 
-static void* filter(void *prime) {
-  uint32_t my_prime = *((uint32_t*)prime);
-  uint32_t *candidate = (uint32_t*)fiber_yield(NULL);
-  while (*candidate != 0) {
-    bool result = *candidate % my_prime == 0 ? true : false;
-    candidate = (uint32_t*)fiber_yield((void*)result);
-  }
-  return NULL;
-}
+/* static void* filter(void *prime) { */
+/*   uint32_t my_prime = *((uint32_t*)prime); */
+/*   uint32_t *candidate = (uint32_t*)fiber_yield(NULL); */
+/*   while (*candidate != 0) { */
+/*     bool result = *candidate % my_prime == 0 ? true : false; */
+/*     candidate = (uint32_t*)fiber_yield((void*)result); */
+/*   } */
+/*   return NULL; */
+/* } */
+
+extern
+__wasm_import("benchmark", "filter")
+void* filter(void*);
 
 __noinline
 __wasm_export("filter_yield")
