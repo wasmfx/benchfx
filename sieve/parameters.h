@@ -38,7 +38,7 @@ int verify(const uint32_t *primes, size_t len, const uint32_t *primes_ref, size_
 #if PRINT_PRIMES == 1
 #define print_primes(primes, len) { \
   for (size_t i = 0; i < len; i++) \
-    printf("%" PRIu64 " ", primes[i]); \
+    printf("%" PRIu32 " ", primes[i]); \
   printf("\n"); \
   }
 #else
