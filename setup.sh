@@ -6,7 +6,7 @@
 
 BINARYEN_URL=https://github.com/WebAssembly/binaryen/releases/download/version_116/binaryen-version_116-x86_64-linux.tar.gz
 MIMALLOC_URL=https://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.2.tar.gz
-WASI_SDK_URL=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-20/wasi-sdk-20.0-linux.tar.gz
+WASI_SDK_URL=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-21/wasi-sdk-21.0-linux.tar.gz
 
 # params: dependency name, dependency url
 function download_dependency()
