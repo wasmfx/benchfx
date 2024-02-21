@@ -22,9 +22,9 @@ WASMTIME_REPO2="wasmtime2"
 
 
 @dataclass
-class Entry:
+class Suite:
     path: str
-    alternatives: List[str]
+    benchmarks: List[str]
 
 
 # def runProcess(cmd : str) -> tuple[ExitCode, str, str]:
@@ -65,6 +65,9 @@ def run(cmd, cwd = None) -> subprocess.CompletedProcess:
 
 # Like run, but checks that the command finished with non-zero exit code.
 def run_check(cmd, msg = None, cwd = None):
+    if isinstance(cmd, list):
+        cmd = map(lambda part: "'" + part + "'", cmd)
+        cmd = " ".join(cmd)
     result = run(cmd, cwd)
     msg = msg or f"Running {cmd} in {cwd or os.getcwd()} failed"
     check(result.returncode == 0, msg + f"\nDetails:\nCommand failed: {cmd}\nStdout: {result.stdout}, Stderr: {result.stderr}")
@@ -86,7 +89,7 @@ class Binaryen:
         run_check(f"make -j {cpus}", msg = "building binaryen failed", cwd = self.path)
 
 
-    def wasm_merge_path(self) -> str:
+    def wasm_merge_executable_path(self) -> str:
         return str(os.path.join(self.path, "bin", "wasm-merge"))
 
 
@@ -94,6 +97,9 @@ class Binaryen:
 class RefeferenceInterpreter:
     def __init__(self, path : Path):
         self.path = path
+
+    def executable_path(self):
+        return os.path.join(self.path, "wasm")
 
     def build(self):
         run_check("make", "Failed to build reference interpreter", self.path)
@@ -104,12 +110,21 @@ class RefeferenceInterpreter:
 
 
 class Wasmtime:
-    def __init__(self, path : Path):
+    def __init__(self, path : Path, release_build = True):
         self.path = path
+        self.release_build = release_build
+
+    def wasmtime_executable_path(self):
+        if self.release_build:
+            return os.path.join(self.path + "target/release/wasmtime")
+        else:
+            return os.path.join(self.path + "target/debug/wasmtime")
+
 
     def build(self):
-        pass
-        #run_check("make", "Failed to build reference interpreter", self.path)
+        # For the tim
+        release = ["--release"] if self.release_build else []
+        run_check(["cargo", "build"] + release + config.WASMTIME_CARGO_BUILD_ARGS, "Failed to build wasmtime", self.path)
 
 
 
@@ -164,6 +179,10 @@ class Run:
         pass
 
     @staticmethod
+    def run_macro_make(args, reference_interpreter, wasm_merge, cwd):
+        run_check(["make"] + args + [f"WASM_INTERP={reference_interpreter}", f"WASM_MERGE={wasm_merge}"], cwd = cwd)
+
+    @staticmethod
     def execute(args):
         print("run is running")
 
@@ -212,6 +231,17 @@ class Run:
         wasmtime = Wasmtime(wasmtime_repo_path)
 
         wasmtime.build()
+
+        # Build benchmarks in each suite
+        for suite in config.BENCHMARK_SUITES:
+            path = suite.path
+            check(Path(path).exists(), f"Found benchmark suite with non-existing path {path}")
+
+            # The make files may not be fully aware that various tools changed
+            run_check("make clean", cwd = path)
+            # TODO change this to just "make"
+            benches = [ b + ".wasm" for b in suite.benchmarks ]
+            Run.run_macro_make(benches, Path(interpreter.executable_path()).absolute(), Path(binaryen.wasm_merge_executable_path()).absolute(), cwd = path)
 
 
     @staticmethod
