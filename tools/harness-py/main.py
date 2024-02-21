@@ -27,11 +27,6 @@ class Suite:
     benchmarks: List[str]
 
 
-# def runProcess(cmd : str) -> tuple[ExitCode, str, str]:
-#     cp = subprocess.run(cmd, capture_output=True)
-#     return (cp.returncode, cp.stdout.decode('utf-8'), cp.stderr.decode('utf-8'))
-
-
 class HarnessError(Exception):
     def __init__(self, msg):
         super().__init__(msg)
@@ -45,14 +40,6 @@ def log(msg, sep = None):
 
 SHOW_OUTPUT=True
 
-# def run_args(cmd, cwd=None) -> Tuple[int, str, str]:
-#     completed = subprocess.run(cmd, cwd=cwd, capture_output=True, shell=True)
-#     return (completed.returncode, completed.stdout.decode('utf-8'), completed.stderr.decode('utf-8'))
-
-# class ProcessOutput:
-#     def __init__(self, cp : subprocess.CompletedProcess):
-#         self.returncode = cp.returncode
-#         self.stdout =
 
 def run(cmd, cwd = None) -> subprocess.CompletedProcess:
     use_shell = not isinstance(cmd, list)
@@ -83,10 +70,6 @@ class Binaryen:
 
     def build(self):
         cpus = math.ceil(multiprocessing.cpu_count() / 2)
-        pass
-
-
-        #run_check("mkdir -p out", cwd = selfpath)
         run_check("cmake .", msg = "cmake for binaryen failed", cwd = self.path)
         run_check(f"make -j {cpus}", msg = "building binaryen failed", cwd = self.path)
 
@@ -161,8 +144,6 @@ class GitRepo:
 
         check(GitRepo.is_root_of_repo_or_worktree(path),
               f"{path} is not the root of a git repository (or a worktree of a repository)")
-
-        self.repo = git.Repo(path)
 
 
     @staticmethod
