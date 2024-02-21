@@ -55,8 +55,9 @@ SHOW_OUTPUT=True
 #         self.stdout =
 
 def run(cmd, cwd = None) -> subprocess.CompletedProcess:
+    use_shell = not isinstance(cmd, list)
     log(f"cmd is {cmd}, cwd is {cwd}")
-    res = subprocess.run(cmd, cwd=cwd, capture_output=True, shell=True, text = True)
+    res = subprocess.run(cmd, cwd=cwd, capture_output=True, shell=use_shell, text = True)
     if SHOW_OUTPUT:
         log(res.stdout, sep = "")
         log(res.stderr, sep = "")
@@ -65,9 +66,10 @@ def run(cmd, cwd = None) -> subprocess.CompletedProcess:
 
 # Like run, but checks that the command finished with non-zero exit code.
 def run_check(cmd, msg = None, cwd = None):
-    if isinstance(cmd, list):
-        cmd = map(lambda part: "'" + part + "'", cmd)
-        cmd = " ".join(cmd)
+    #use_shell = not isinstance(cmd, list)
+    # if isinstance(cmd, list):
+    #     cmd = map(lambda part: "'" + part + "'", cmd)
+    #     cmd = " ".join(cmd)
     result = run(cmd, cwd)
     msg = msg or f"Running {cmd} in {cwd or os.getcwd()} failed"
     check(result.returncode == 0, msg + f"\nDetails:\nCommand failed: {cmd}\nStdout: {result.stdout}, Stderr: {result.stderr}")
@@ -92,6 +94,9 @@ class Binaryen:
     def wasm_merge_executable_path(self) -> str:
         return str(os.path.join(self.path, "bin", "wasm-merge"))
 
+    def wasm_opt_executable_path(self) -> str:
+        return str(os.path.join(self.path, "bin", "wasm-opt"))
+
 
 
 class RefeferenceInterpreter:
@@ -114,17 +119,37 @@ class Wasmtime:
         self.path = path
         self.release_build = release_build
 
-    def wasmtime_executable_path(self):
+    def executable_path(self):
         if self.release_build:
-            return os.path.join(self.path + "target/release/wasmtime")
+            return os.path.join(self.path, "target/release/wasmtime")
         else:
-            return os.path.join(self.path + "target/debug/wasmtime")
+            return os.path.join(self.path, "target/debug/wasmtime")
 
 
     def build(self):
         # For the tim
         release = ["--release"] if self.release_build else []
         run_check(["cargo", "build"] + release + config.WASMTIME_CARGO_BUILD_ARGS, "Failed to build wasmtime", self.path)
+
+
+    def compile_cwasm(self, input_wasm_path, output_cwasm_path):
+        wasmtime = self.executable_path()
+        command = "compile"
+        args = config.WASMTIME_COMPILE_ARGS
+        run_check([wasmtime, "compile" ] + args + [f"--output={output_cwasm_path}", input_wasm_path], f"Failed to compile {input_wasm_path} to  {output_cwasm_path}" )
+
+    def run_cwasm_shell_command(self, cwasm_path):
+        wasmtime = self.executable_path()
+        command = "run"
+        all  = [wasmtime , "run", "--allow-precompiled"] + config.WASMTIME_RUN_ARGS + [cwasm_path]
+        all_escaped = map(lambda part: f"'{part}'", all)
+        return " ".join(all_escaped)
+
+class Hyperfine:
+    @staticmethod
+    def run(shell_commands, warmup_count = 3):
+        run_check(["hyperfine", f"--warmup={warmup_count}"] + shell_commands)
+
 
 
 
@@ -179,8 +204,8 @@ class Run:
         pass
 
     @staticmethod
-    def run_macro_make(args, reference_interpreter, wasm_merge, cwd):
-        run_check(["make"] + args + [f"WASM_INTERP={reference_interpreter}", f"WASM_MERGE={wasm_merge}"], cwd = cwd)
+    def run_macro_make(args, reference_interpreter, wasm_merge, wasm_opt, cwd):
+        run_check(["make"] + args + [f"WASM_INTERP={reference_interpreter}", f"WASM_MERGE={wasm_merge}", f"WASM_OPT={wasm_opt}"], cwd = cwd)
 
     @staticmethod
     def execute(args):
@@ -232,16 +257,51 @@ class Run:
 
         wasmtime.build()
 
+        suite_files = {}
+
         # Build benchmarks in each suite
         for suite in config.BENCHMARK_SUITES:
-            path = suite.path
-            check(Path(path).exists(), f"Found benchmark suite with non-existing path {path}")
+            path = Path(suite.path)
+            check(path.exists(), f"Found benchmark suite with non-existing path {path}")
 
             # The make files may not be fully aware that various tools changed
             run_check("make clean", cwd = path)
             # TODO change this to just "make"
-            benches = [ b + ".wasm" for b in suite.benchmarks ]
-            Run.run_macro_make(benches, Path(interpreter.executable_path()).absolute(), Path(binaryen.wasm_merge_executable_path()).absolute(), cwd = path)
+
+
+            benchmark_cwasm_paths = []
+            for b in suite.benchmarks:
+                benchmark_file = b + ".wasm"
+                benchmark_path = path.joinpath(benchmark_file)
+
+                benchmark_filter = args.filter
+                if benchmark_filter is not None and not benchmark_path.match(benchmark_filter):
+                    log(f"Skipping benchmark {benchmark_path} as it does not match filter")
+                    continue
+
+
+                # create .wasm file for each benchmark
+                Run.run_macro_make([benchmark_file],
+                                   reference_interpreter=Path(interpreter.executable_path()).absolute(),
+                                   wasm_merge=Path(binaryen.wasm_merge_executable_path()).absolute(),
+                                   wasm_opt=Path(binaryen.wasm_opt_executable_path()).absolute(),
+                                   cwd = path)
+
+                # Create .cwasm file for each benchmark
+                benchmark_cwasm_path = path.joinpath(b + ".cwasm")
+                wasmtime.compile_cwasm(str(benchmark_path), str(benchmark_cwasm_path))
+
+                benchmark_cwasm_paths.append(benchmark_cwasm_path)
+
+            if benchmark_cwasm_paths:
+                suite_files[suite.path] = benchmark_cwasm_paths
+            #
+
+
+        # Perform actual benchmarking in each suite:
+        for (suite_path, suite_cwasm_files) in suite_files.items():
+            wasmtime_run_commmands = list(map(wasmtime.run_cwasm_shell_command, suite_cwasm_files))
+            Hyperfine.run(wasmtime_run_commmands)
 
 
     @staticmethod
