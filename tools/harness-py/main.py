@@ -3,6 +3,7 @@ import subprocess
 import multiprocessing
 import math
 import config
+import json
 
 from typing import List, Tuple
 from pathlib import Path
@@ -130,8 +131,11 @@ class Wasmtime:
 
 class Hyperfine:
     @staticmethod
-    def run(shell_commands, warmup_count = 3):
-        run_check(["hyperfine", f"--warmup={warmup_count}"] + shell_commands)
+    def run(shell_commands, warmup_count = 3, json_export_path = None):
+        args = ["hyperfine", f"--warmup={warmup_count}"]
+        if json_export_path:
+            args += [f"--export-json={json_export_path}"]
+        run_check(args + shell_commands)
 
 
 
@@ -174,11 +178,45 @@ class GitRepo:
         self.git("submodule update --init --recursive")
 
 
+# Builds the reference interpreter and binaryen
+def build_common_tools():
+    # Reference interpreter setup
+
+   spec_repo_path = os.path.join(REPOS_PATH, SPEC_REPO)
+   log(f"spec repo expected at {spec_repo_path}")
+
+   spec_repo = GitRepo(spec_repo_path)
+
+   log(f"spec repo dirty? {spec_repo.is_dirty()}")
+
+   spec_repo.checkout(config.SPEC_COMMIT)
+
+   interpreter_path = os.path.join(spec_repo_path, "interpreter")
+   interpreter = RefeferenceInterpreter(interpreter_path)
+
+   interpreter.build()
+
+
+   # Binaryen setup
+   binaryen_repo_path = os.path.join(REPOS_PATH, BINARYEN_REPO)
+   log(f"binaryen repo expected at {binaryen_repo_path}")
+
+   binaryen_repo = GitRepo(binaryen_repo_path)
+
+   log(f"binaryen repo dirty? {binaryen_repo.is_dirty()}")
+
+   binaryen_repo.checkout(config.BINARYEN_COMMIT)
+
+   binaryen = Binaryen(binaryen_repo_path)
+
+   binaryen.build()
+
+   return (interpreter, binaryen)
 
 # The run command, which just runs the benchmarks
 class Run:
-    def __init__(self, path : Path, alternatives: List[str]):
-        self.path = path
+    def __init__(self):
+        pass
 
 
     def make(self):
@@ -188,41 +226,11 @@ class Run:
     def run_macro_make(args, reference_interpreter, wasm_merge, wasm_opt, cwd):
         run_check(["make"] + args + [f"WASM_INTERP={reference_interpreter}", f"WASM_MERGE={wasm_merge}", f"WASM_OPT={wasm_opt}"], cwd = cwd)
 
-    @staticmethod
-    def execute(args):
+    def execute(self, args):
         print("run is running")
 
-        # Reference interpreter setup
 
-        spec_repo_path = os.path.join(REPOS_PATH, SPEC_REPO)
-        log(f"spec repo expected at {spec_repo_path}")
-
-        spec_repo = GitRepo(spec_repo_path)
-
-        log(f"spec repo dirty? {spec_repo.is_dirty()}")
-
-        spec_repo.checkout(config.SPEC_COMMIT)
-
-        interpreter_path = os.path.join(spec_repo_path, "interpreter")
-        interpreter = RefeferenceInterpreter(interpreter_path)
-
-        interpreter.build()
-
-
-        # Binaryen setup
-        binaryen_repo_path = os.path.join(REPOS_PATH, BINARYEN_REPO)
-        log(f"binaryen repo expected at {binaryen_repo_path}")
-
-        binaryen_repo = GitRepo(binaryen_repo_path)
-
-        log(f"binaryen repo dirty? {binaryen_repo.is_dirty()}")
-
-        binaryen_repo.checkout(config.BINARYEN_COMMIT)
-
-        binaryen = Binaryen(binaryen_repo_path)
-
-        binaryen.build()
-
+        (interpreter, binaryen) = build_common_tools()
 
         # Wasmtime setup
         wasmtime_repo_path = os.path.join(REPOS_PATH, WASMTIME_REPO1)
@@ -288,39 +296,131 @@ class Run:
     @staticmethod
     def addSubparser(subparsers):
         parser = subparsers.add_parser("run", help = "runs benchmarks (used by default)")
-        parser.add_argument("--filter", help = "Only run benchmarks that match this glob pattern")
-        parser.add_argument("--allow-dirty", help = "Allows the benchfx, binaryen, spec and wasmtime repos to be dirty")
+        parser.add_argument("--filter", help="Only run benchmarks that match this glob pattern")
+        parser.add_argument("--allow-dirty", help = "Allows the benchfx, binaryen, spec and wasmtime repos to be dirty", action = "store_true")
 
 
-class Compare:
-    def __init__(self, path : Path, alternatives: List[str]):
-        self.path = path
-
+class CompareRevs:
+    def __init__(self):
+        pass
 
     def make(self):
         pass
 
     @staticmethod
-    def execute(args):
-        pass
+    def run_macro_make(args, reference_interpreter, wasm_merge, wasm_opt, cwd):
+        run_check(["make"] + args + [f"WASM_INTERP={reference_interpreter}", f"WASM_MERGE={wasm_merge}", f"WASM_OPT={wasm_opt}"], cwd = cwd)
+
+    def prepare_wasmtime(self, repo_path, revision):
+
+        wasmtime_repo = GitRepo(repo_path)
+
+        log(f"wasmtime repo dirty? {wasmtime_repo.is_dirty()}")
+
+        wasmtime_repo.checkout(revision)
+
+        wasmtime = Wasmtime(repo_path)
+
+        wasmtime.build()
+
+        return wasmtime
+
+
+    def execute(self, args):
+        print("run is running")
+
+
+        (interpreter, binaryen) = build_common_tools()
+
+        # Wasmtime1 setup
+        wasmtime1_repo_path = os.path.join(REPOS_PATH, WASMTIME_REPO1)
+        wasmtime1 = self.prepare_wasmtime(wasmtime1_repo_path, args.revision1)
+
+        # Wasmtime2 setup
+        wasmtime2_repo_path = os.path.join(REPOS_PATH, WASMTIME_REPO2)
+        wasmtime2 = self.prepare_wasmtime(wasmtime2_repo_path, args.revision2)
+
+        suite_files = {}
+
+        # Build benchmarks in each suite
+        for suite in config.BENCHMARK_SUITES:
+            path = Path(suite.path)
+            check(path.exists(), f"Found benchmark suite with non-existing path {path}")
+
+            # The make files may not be fully aware that various tools changed
+            run_check("make clean", cwd = path)
+            # TODO change this to just "make"
+
+
+            benchmark_cwasm_pairs = []
+            for b in suite.benchmarks:
+                benchmark_file = b + ".wasm"
+                benchmark_path = path.joinpath(benchmark_file)
+
+                benchmark_filter = args.filter
+                if benchmark_filter is not None and not benchmark_path.match(benchmark_filter):
+                    log(f"Skipping benchmark {benchmark_path} as it does not match filter")
+                    continue
+
+
+                # create .wasm file for each benchmark
+                CompareRevs.run_macro_make([benchmark_file],
+                                   reference_interpreter=Path(interpreter.executable_path()).absolute(),
+                                   wasm_merge=Path(binaryen.wasm_merge_executable_path()).absolute(),
+                                   wasm_opt=Path(binaryen.wasm_opt_executable_path()).absolute(),
+                                   cwd = path)
+
+                # Create .cwasm file for each wasmtime version
+                benchmark_cwasm_path1 = path.joinpath(b + ".rev1.cwasm")
+                wasmtime1.compile_cwasm(str(benchmark_path), str(benchmark_cwasm_path1))
+
+                benchmark_cwasm_path2 = path.joinpath(b + ".rev2.cwasm")
+                wasmtime2.compile_cwasm(str(benchmark_path), str(benchmark_cwasm_path2))
+                json_path = path.joinpath(b + ".result.json")
+
+                benchmark_cwasm_pairs.append((b, [benchmark_cwasm_path1, benchmark_cwasm_path2], json_path))
+
+            if benchmark_cwasm_pairs:
+                suite_files[suite.path] = benchmark_cwasm_pairs
+
+
+
+        # Perform actual benchmarking in each suite:
+        for (suite_path, benchmark_cwasm_pairs) in suite_files.items():
+            for (bench_name, cwasms, json_path) in benchmark_cwasm_pairs:
+                wasmtime_run_commmands = [wasmtime1.run_cwasm_shell_command(cwasms[0]),
+                                          wasmtime2.run_cwasm_shell_command(cwasms[1])]
+                Hyperfine.run(wasmtime_run_commmands, json_export_path = json_path)
+
+        # Print results from each suite
+        for (suite_path, benchmark_cwasm_pairs) in suite_files.items():
+            print(f"Suite: {suite_path}")
+            for (bench_name, _, json_path) in benchmark_cwasm_pairs:
+                with open(json_path, 'r') as f:
+                    results = json.load(f)["results"]
+                    rev1_mean = results[0]["mean"]
+                    rev2_mean = results[1]["mean"]
+                    print(f"{bench_name}: {rev1_mean / rev2_mean}")
+
+            
 
 
     @staticmethod
     def addSubparser(subparsers):
-        parser = subparsers.add_parser("compare", help = "compare two wasmtime revisions")
+        parser = subparsers.add_parser("compare-revs", help = "Run benchmarks using two wasmtime revisions and compare results")
         parser.add_argument("--filter", help = "Only run benchmarks that match this glob pattern")
-        parser.add_argument("--commit1", help = "First Wasmtime commit/version to use in the comparison")
-        parser.add_argument("--commit2", help = "Second Wasmtime commit/version to use in the comparison")
         parser.add_argument("--allow-dirty", help = "Allows the benchfx, binaryen, spec and wasmtime repos to be dirty")
+        parser.add_argument("revision1", help = "First Wasmtime revision to use in the comparison")
+        parser.add_argument("revision2", help = "Second Wasmtime revision to use in the comparison")
 
 def main():
     parser = argparse.ArgumentParser(prog='bench')
 
-    subcommands = [Run, Compare]
-    subparsers = parser.add_subparsers(title = "Available subcommands", dest = "command")
+    subcommands = [Run, CompareRevs]
+    subparsers = parser.add_subparsers(title = "Available subcommands", dest = "command", required = True)
 
-    # The default command is "run"
-    parser.set_defaults(command = "run")
+    # This is supposed to make the  default command "run", but doesn't quite work
+    # parser.set_defaults(command = "run")
 
     for sc in subcommands:
         sc.addSubparser(subparsers)
@@ -329,8 +429,8 @@ def main():
     print(args)
 
     match args.command:
-        case "run": Run.execute(args)
-        case "compare": Compare.execute(args)
+        case "run": Run().execute(args)
+        case "compare-revs": CompareRevs().execute(args)
 
 
 
