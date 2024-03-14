@@ -1,15 +1,15 @@
 from typing import List
-from main import Suite
+from main import Suite, Benchmark, MakeWasm, Wat
 
 BENCHMARK_SUITES : List[Suite]= [
     Suite(path = "c10m",
-          benchmarks = ["c10m_bespoke", "c10m_asyncify", "c10m_wasmfx"]),
+          benchmarks = [MakeWasm(wasm) for wasm in ["c10m_bespoke", "c10m_asyncify", "c10m_wasmfx"]]),
     Suite(path = "sieve",
-          benchmarks = ["sieve_bespoke", "sieve_asyncify", "sieve_wasmfx"]),
+          benchmarks = [MakeWasm(wasm) for wasm in ["sieve_bespoke", "sieve_asyncify", "sieve_wasmfx"]]),
     Suite(path = "skynet",
-          benchmarks = ["skynet_bespoke", "skynet_asyncify", "skynet_wasmfx"]),
+          benchmarks = [MakeWasm(wasm) for wasm in ["skynet_bespoke", "skynet_asyncify", "skynet_wasmfx"]]),
     Suite(path = "state",
-          benchmarks = ["state_bespoke", "state_asyncify", "state_wasmfx"]),
+          benchmarks = [MakeWasm(wasm) for wasm in ["state_bespoke", "state_asyncify", "state_wasmfx"]]),
 ]
 
 BINARYEN_COMMIT = "30408729702df540930801708950678a54a7afe3"

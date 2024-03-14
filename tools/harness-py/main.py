@@ -7,7 +7,7 @@ import json
 
 from typing import List, Tuple
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import git
 from pathlib import Path
 import os
@@ -21,11 +21,33 @@ BINARYEN_REPO="binaryen"
 WASMTIME_REPO1="wasmtime1"
 WASMTIME_REPO2="wasmtime2"
 
+@dataclass
+class Benchmark:
+    name: str
+
+    def build(self, suite_path, reference_interpreter, wasm_merge, wasm_opt):
+        pass
+
+@dataclass
+class MakeWasm(Benchmark):
+
+
+    def build(self, suite_path, reference_interpreter, wasm_merge, wasm_opt):
+        f = self.name + ".wasm"
+        run_check(["make", f] + [f"WASM_INTERP={reference_interpreter}", f"WASM_MERGE={wasm_merge}", f"WASM_OPT={wasm_opt}"], cwd = suite_path)
+
+
+@dataclass
+class Wat(Benchmark):
+    invoke: str = field(default=None)
 
 @dataclass
 class Suite:
     path: str
-    benchmarks: List[str]
+    benchmarks: List[Benchmark]
+
+
+
 
 
 class HarnessError(Exception):
@@ -260,7 +282,7 @@ class Run:
 
             benchmark_cwasm_paths = []
             for b in suite.benchmarks:
-                benchmark_file = b + ".wasm"
+                benchmark_file = b.name + ".wasm"
                 benchmark_path = path.joinpath(benchmark_file)
 
                 benchmark_filter = args.filter
@@ -270,14 +292,13 @@ class Run:
 
 
                 # create .wasm file for each benchmark
-                Run.run_macro_make([benchmark_file],
-                                   reference_interpreter=Path(interpreter.executable_path()).absolute(),
-                                   wasm_merge=Path(binaryen.wasm_merge_executable_path()).absolute(),
-                                   wasm_opt=Path(binaryen.wasm_opt_executable_path()).absolute(),
-                                   cwd = path)
+                b.build(suite_path=path,
+                        reference_interpreter=Path(interpreter.executable_path()).absolute(),
+                        wasm_merge=Path(binaryen.wasm_merge_executable_path()).absolute(),
+                        wasm_opt=Path(binaryen.wasm_opt_executable_path()).absolute())
 
                 # Create .cwasm file for each benchmark
-                benchmark_cwasm_path = path.joinpath(b + ".cwasm")
+                benchmark_cwasm_path = path.joinpath(b.name + ".cwasm")
                 wasmtime.compile_cwasm(str(benchmark_path), str(benchmark_cwasm_path))
 
                 benchmark_cwasm_paths.append(benchmark_cwasm_path)
@@ -354,7 +375,7 @@ class CompareRevs:
 
             benchmark_cwasm_pairs = []
             for b in suite.benchmarks:
-                benchmark_file = b + ".wasm"
+                benchmark_file = b.name + ".wasm"
                 benchmark_path = path.joinpath(benchmark_file)
 
                 benchmark_filter = args.filter
@@ -364,21 +385,21 @@ class CompareRevs:
 
 
                 # create .wasm file for each benchmark
-                CompareRevs.run_macro_make([benchmark_file],
-                                   reference_interpreter=Path(interpreter.executable_path()).absolute(),
-                                   wasm_merge=Path(binaryen.wasm_merge_executable_path()).absolute(),
-                                   wasm_opt=Path(binaryen.wasm_opt_executable_path()).absolute(),
-                                   cwd = path)
+                b.build(suite_path=path,
+                        reference_interpreter=Path(interpreter.executable_path()).absolute(),
+                        wasm_merge=Path(binaryen.wasm_merge_executable_path()).absolute(),
+                        wasm_opt=Path(binaryen.wasm_opt_executable_path()).absolute())
+
 
                 # Create .cwasm file for each wasmtime version
-                benchmark_cwasm_path1 = path.joinpath(b + ".rev1.cwasm")
+                benchmark_cwasm_path1 = path.joinpath(b.name + ".rev1.cwasm")
                 wasmtime1.compile_cwasm(str(benchmark_path), str(benchmark_cwasm_path1))
 
-                benchmark_cwasm_path2 = path.joinpath(b + ".rev2.cwasm")
+                benchmark_cwasm_path2 = path.joinpath(b.name + ".rev2.cwasm")
                 wasmtime2.compile_cwasm(str(benchmark_path), str(benchmark_cwasm_path2))
-                json_path = path.joinpath(b + ".result.json")
+                json_path = path.joinpath(b.name + ".result.json")
 
-                benchmark_cwasm_pairs.append((b, [benchmark_cwasm_path1, benchmark_cwasm_path2], json_path))
+                benchmark_cwasm_pairs.append((b.name, [benchmark_cwasm_path1, benchmark_cwasm_path2], json_path))
 
             if benchmark_cwasm_pairs:
                 suite_files[suite.path] = benchmark_cwasm_pairs
