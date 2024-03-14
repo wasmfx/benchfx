@@ -21,35 +21,6 @@ BINARYEN_REPO="binaryen"
 WASMTIME_REPO1="wasmtime1"
 WASMTIME_REPO2="wasmtime2"
 
-@dataclass
-class Benchmark:
-    name: str
-
-    def build(self, suite_path, reference_interpreter, wasm_merge, wasm_opt):
-        pass
-
-@dataclass
-class MakeWasm(Benchmark):
-
-
-    def build(self, suite_path, reference_interpreter, wasm_merge, wasm_opt):
-        f = self.name + ".wasm"
-        run_check(["make", f] + [f"WASM_INTERP={reference_interpreter}", f"WASM_MERGE={wasm_merge}", f"WASM_OPT={wasm_opt}"], cwd = suite_path)
-
-
-@dataclass
-class Wat(Benchmark):
-    invoke: str = field(default=None)
-
-@dataclass
-class Suite:
-    path: str
-    benchmarks: List[Benchmark]
-
-
-
-
-
 class HarnessError(Exception):
     def __init__(self, msg):
         super().__init__(msg)
@@ -62,6 +33,50 @@ def log(msg, sep = None):
     print(msg, sep=sep)
 
 SHOW_OUTPUT=True
+
+@dataclass
+class Benchmark:
+    name: str
+    file: str
+
+    def build(self, suite_path, reference_interpreter, wasm_merge, wasm_opt):
+        pass
+
+
+class MakeWasm(Benchmark):
+    def __init__(self, file, name = None,  invoke = None):
+        self.name = name or file
+        self.file = file
+        self.invoke = invoke
+
+
+    def build(self, suite_path, reference_interpreter, binaryen):
+        f = self.file + ".wasm"
+        reference_interpreter = Path(reference_interpreter.executable_path()).absolute()
+        wasm_merge = Path(binaryen.wasm_merge_executable_path()).absolute()
+        wasm_opt = Path(binaryen.wasm_opt_executable_path()).absolute()
+        run_check(["make", f] + [f"WASM_INTERP={reference_interpreter}", f"WASM_MERGE={wasm_merge}", f"WASM_OPT={wasm_opt}"], cwd = suite_path)
+
+
+class Wat(Benchmark):
+    def __init__(self, file, name = None,  invoke = None):
+        self.name = name or file
+        self.file = file
+        self.invoke = invoke
+
+    def build(self, suite_path, reference_interpreter, binaryen):
+        input = Path(suite_path) / (self.file + ".wat")
+        output = Path(suite_path) / (self.file + ".wasm")
+        reference_interpreter.compile(str(input.absolute()), str(output.absolute()))
+
+@dataclass
+class Suite:
+    path: str
+    benchmarks: List[Benchmark]
+
+    def hasMakeBenchmark(self):
+        return any(map(lambda b: isinstance(b, MakeWasm), self.benchmarks))
+
 
 
 def run(cmd, cwd = None) -> subprocess.CompletedProcess:
@@ -116,7 +131,8 @@ class RefeferenceInterpreter:
         run_check("make", "Failed to build reference interpreter", self.path)
 
     def compile(self, input_path, output_path):
-        run_check(f"wasm -d '{input_path}' -o '{output_path}'", self.path)
+        wasm = str(Path(self.executable_path()).absolute())
+        run_check(f"{wasm} -d '{input_path}' -o '{output_path}'", self.path)
 
 
 
@@ -144,10 +160,14 @@ class Wasmtime:
         args = config.WASMTIME_COMPILE_ARGS
         run_check([wasmtime, "compile" ] + args + [f"--output={output_cwasm_path}", input_wasm_path], f"Failed to compile {input_wasm_path} to  {output_cwasm_path}" )
 
-    def run_cwasm_shell_command(self, cwasm_path):
+    def run_cwasm_shell_command(self, cwasm_path, invoke_function = None, ):
         wasmtime = self.executable_path()
         command = "run"
-        all  = [wasmtime , "run", "--allow-precompiled"] + config.WASMTIME_RUN_ARGS + [cwasm_path]
+        extra_args = []
+        if invoke_function:
+            extra_args += [f"--invoke={invoke_function}"]
+
+        all = [wasmtime , "run", "--allow-precompiled"] + config.WASMTIME_RUN_ARGS + extra_args + [cwasm_path]
         all_escaped = map(lambda part: f"'{part}'", all)
         return " ".join(all_escaped)
 
@@ -275,14 +295,15 @@ class Run:
             path = Path(suite.path)
             check(path.exists(), f"Found benchmark suite with non-existing path {path}")
 
-            # The make files may not be fully aware that various tools changed
-            run_check("make clean", cwd = path)
-            # TODO change this to just "make"
+            if suite.hasMakeBenchmark():
+                # The make files may not be fully aware that various tools changed
+                run_check("make clean", cwd = path)
+
 
 
             benchmark_cwasm_paths = []
             for b in suite.benchmarks:
-                benchmark_file = b.name + ".wasm"
+                benchmark_file = b.file + ".wasm"
                 benchmark_path = path.joinpath(benchmark_file)
 
                 benchmark_filter = args.filter
@@ -293,15 +314,14 @@ class Run:
 
                 # create .wasm file for each benchmark
                 b.build(suite_path=path,
-                        reference_interpreter=Path(interpreter.executable_path()).absolute(),
-                        wasm_merge=Path(binaryen.wasm_merge_executable_path()).absolute(),
-                        wasm_opt=Path(binaryen.wasm_opt_executable_path()).absolute())
+                        reference_interpreter=interpreter,
+                        binaryen=binaryen)
 
                 # Create .cwasm file for each benchmark
-                benchmark_cwasm_path = path.joinpath(b.name + ".cwasm")
+                benchmark_cwasm_path = path.joinpath(b.file + ".cwasm")
                 wasmtime.compile_cwasm(str(benchmark_path), str(benchmark_cwasm_path))
 
-                benchmark_cwasm_paths.append(benchmark_cwasm_path)
+                benchmark_cwasm_paths.append((b, benchmark_cwasm_path))
 
             if benchmark_cwasm_paths:
                 suite_files[suite.path] = benchmark_cwasm_paths
@@ -309,8 +329,12 @@ class Run:
 
 
         # Perform actual benchmarking in each suite:
-        for (suite_path, suite_cwasm_files) in suite_files.items():
-            wasmtime_run_commmands = list(map(wasmtime.run_cwasm_shell_command, suite_cwasm_files))
+        for (suite_path, benchmark_entries) in suite_files.items():
+            def make_shell_command(arg):
+                (benchmark, cwasm_path) = arg
+                return wasmtime.run_cwasm_shell_command(cwasm_path, invoke_function = benchmark.invoke)
+
+            wasmtime_run_commmands = list(map(make_shell_command, benchmark_entries))
             Hyperfine.run(wasmtime_run_commmands)
 
 
@@ -368,14 +392,14 @@ class CompareRevs:
             path = Path(suite.path)
             check(path.exists(), f"Found benchmark suite with non-existing path {path}")
 
-            # The make files may not be fully aware that various tools changed
-            run_check("make clean", cwd = path)
-            # TODO change this to just "make"
+            if suite.hasMakeBenchmark():
+                # The make files may not be fully aware that various tools changed
+                run_check("make clean", cwd = path)
 
 
             benchmark_cwasm_pairs = []
             for b in suite.benchmarks:
-                benchmark_file = b.name + ".wasm"
+                benchmark_file = b.file + ".wasm"
                 benchmark_path = path.joinpath(benchmark_file)
 
                 benchmark_filter = args.filter
@@ -386,20 +410,19 @@ class CompareRevs:
 
                 # create .wasm file for each benchmark
                 b.build(suite_path=path,
-                        reference_interpreter=Path(interpreter.executable_path()).absolute(),
-                        wasm_merge=Path(binaryen.wasm_merge_executable_path()).absolute(),
-                        wasm_opt=Path(binaryen.wasm_opt_executable_path()).absolute())
+                        reference_interpreter=interpreter,
+                        binaryen=binaryen)
 
 
                 # Create .cwasm file for each wasmtime version
-                benchmark_cwasm_path1 = path.joinpath(b.name + ".rev1.cwasm")
+                benchmark_cwasm_path1 = path.joinpath(b.file + ".rev1.cwasm")
                 wasmtime1.compile_cwasm(str(benchmark_path), str(benchmark_cwasm_path1))
 
-                benchmark_cwasm_path2 = path.joinpath(b.name + ".rev2.cwasm")
+                benchmark_cwasm_path2 = path.joinpath(b.file + ".rev2.cwasm")
                 wasmtime2.compile_cwasm(str(benchmark_path), str(benchmark_cwasm_path2))
-                json_path = path.joinpath(b.name + ".result.json")
+                json_path = path.joinpath(b.file + ".result.json")
 
-                benchmark_cwasm_pairs.append((b.name, [benchmark_cwasm_path1, benchmark_cwasm_path2], json_path))
+                benchmark_cwasm_pairs.append((b, [benchmark_cwasm_path1, benchmark_cwasm_path2], json_path))
 
             if benchmark_cwasm_pairs:
                 suite_files[suite.path] = benchmark_cwasm_pairs
@@ -408,20 +431,20 @@ class CompareRevs:
 
         # Perform actual benchmarking in each suite:
         for (suite_path, benchmark_cwasm_pairs) in suite_files.items():
-            for (bench_name, cwasms, json_path) in benchmark_cwasm_pairs:
-                wasmtime_run_commmands = [wasmtime1.run_cwasm_shell_command(cwasms[0]),
-                                          wasmtime2.run_cwasm_shell_command(cwasms[1])]
+            for (bench, cwasms, json_path) in benchmark_cwasm_pairs:
+                wasmtime_run_commmands = [wasmtime1.run_cwasm_shell_command(cwasms[0], invoke_function=bench.invoke),
+                                          wasmtime2.run_cwasm_shell_command(cwasms[1], invoke_function=bench.invoke)]
                 Hyperfine.run(wasmtime_run_commmands, json_export_path = json_path)
 
         # Print results from each suite
         for (suite_path, benchmark_cwasm_pairs) in suite_files.items():
             print(f"Suite: {suite_path}")
-            for (bench_name, _, json_path) in benchmark_cwasm_pairs:
+            for (bench, _, json_path) in benchmark_cwasm_pairs:
                 with open(json_path, 'r') as f:
                     results = json.load(f)["results"]
                     rev1_mean = results[0]["mean"]
                     rev2_mean = results[1]["mean"]
-                    print(f"{bench_name}: {rev1_mean / rev2_mean}")
+                    print(f"{bench.name}: {rev1_mean / rev2_mean}")
 
             
 
