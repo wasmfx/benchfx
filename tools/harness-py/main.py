@@ -5,7 +5,7 @@ import math
 import config
 import json
 
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from pathlib import Path
 from dataclasses import dataclass, field
 import git
@@ -51,7 +51,7 @@ class Benchmark:
     def build(
         self,
         suite_path,
-        reference_interpreter: "RefeferenceInterpreter",
+        reference_interpreter: "ReferenceInterpreter",
         binaryen: "Binaryen",
     ):
         pass
@@ -60,19 +60,19 @@ class Benchmark:
 @typechecked
 class MakeWasm(Benchmark):
     def __init__(self, file, name=None, invoke=None):
-        self.name = name or file
-        self.file = file
-        self.invoke = invoke
+        self.name: str = name or file
+        self.file: str = file
+        self.invoke: Optional[str] = invoke
 
     def build(self, suite_path, reference_interpreter, binaryen):
         f = self.file + ".wasm"
-        reference_interpreter = Path(reference_interpreter.executable_path()).absolute()
+        interpreter = Path(reference_interpreter.executable_path()).absolute()
         wasm_merge = Path(binaryen.wasm_merge_executable_path()).absolute()
         wasm_opt = Path(binaryen.wasm_opt_executable_path()).absolute()
         run_check(
             ["make", f]
             + [
-                f"WASM_INTERP={reference_interpreter}",
+                f"WASM_INTERP={interpreter}",
                 f"WASM_MERGE={wasm_merge}",
                 f"WASM_OPT={wasm_opt}",
             ],
@@ -83,14 +83,14 @@ class MakeWasm(Benchmark):
 @typechecked
 class Wat(Benchmark):
     def __init__(self, file, name=None, invoke=None):
-        self.name = name or file
-        self.file = file
-        self.invoke = invoke
+        self.name: str = name or file
+        self.file: str = file
+        self.invoke: Optional[str] = invoke
 
     def build(self, suite_path, reference_interpreter, binaryen):
         input = Path(suite_path) / (self.file + ".wat")
         output = Path(suite_path) / (self.file + ".wasm")
-        reference_interpreter.compile(str(input.absolute()), str(output.absolute()))
+        reference_interpreter.compile(input, output)
 
 
 @typechecked
@@ -150,19 +150,21 @@ class Binaryen:
 
 
 @typechecked
-class RefeferenceInterpreter:
+class ReferenceInterpreter:
     def __init__(self, path: Path):
         self.path = path
 
-    def executable_path(self):
-        return os.path.join(self.path, "wasm")
+    def executable_path(self) -> Path:
+        return self.path / "wasm"
 
     def build(self):
         run_check("make", "Failed to build reference interpreter", self.path)
 
-    def compile(self, input_path, output_path):
-        wasm = str(Path(self.executable_path()).absolute())
-        run_check(f"{wasm} -d '{input_path}' -o '{output_path}'", self.path)
+    def compile(self, input_path: Path, output_path: Path):
+        wasm = str(self.executable_path().absolute())
+        input_absolute = str(input_path.absolute())
+        output_absolute = str(output_path.absolute())
+        run_check(f"{wasm} -d '{input_absolute}' -o '{output_absolute}'", self.path)
 
 
 class Wasmtime:
@@ -269,7 +271,7 @@ class GitRepo:
 
 # Builds the reference interpreter and binaryen
 @typechecked
-def build_common_tools():
+def build_common_tools() -> Tuple[ReferenceInterpreter, Binaryen]:
     # Reference interpreter setup
 
     spec_repo_path = os.path.join(REPOS_PATH, SPEC_REPO)
@@ -282,7 +284,7 @@ def build_common_tools():
     spec_repo.checkout(config.SPEC_COMMIT)
 
     interpreter_path = Path(os.path.join(spec_repo_path, "interpreter"))
-    interpreter = RefeferenceInterpreter(interpreter_path)
+    interpreter: ReferenceInterpreter = ReferenceInterpreter(interpreter_path)
 
     interpreter.build()
 
