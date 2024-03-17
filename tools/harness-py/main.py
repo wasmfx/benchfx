@@ -10,6 +10,10 @@ from pathlib import Path
 from dataclasses import dataclass, field
 import git
 from pathlib import Path
+
+# High-level file operations
+import shutil
+
 import os
 
 from typeguard import typechecked
@@ -48,13 +52,16 @@ class Benchmark:
     name: str
     file: str
 
-    def build(
+    def prepare(
         self,
-        suite_path,
+        suite: "Suite",
+        output_dir: Path,
         reference_interpreter: "ReferenceInterpreter",
         binaryen: "Binaryen",
-    ):
-        pass
+        wasmtime: "Wasmtime",
+    ) -> str:
+        raise HarnessError("Override me!")
+        return "/bin/false"
 
 
 @typechecked
@@ -64,13 +71,17 @@ class MakeWasm(Benchmark):
         self.file: str = file
         self.invoke: Optional[str] = invoke
 
-    def build(self, suite_path, reference_interpreter, binaryen):
-        f = self.file + ".wasm"
+    def prepare(
+        self, suite, output_dir: Path, reference_interpreter, binaryen, wasmtime
+    ):
+        wasm_file = self.file + ".wasm"
+        cwasm_file = self.file + ".cwasm"
+        suite_path = Path(suite.path)
         interpreter = Path(reference_interpreter.executable_path()).absolute()
         wasm_merge = Path(binaryen.wasm_merge_executable_path()).absolute()
         wasm_opt = Path(binaryen.wasm_opt_executable_path()).absolute()
         run_check(
-            ["make", f]
+            ["make", wasm_file]
             + [
                 f"WASM_INTERP={interpreter}",
                 f"WASM_MERGE={wasm_merge}",
@@ -78,6 +89,11 @@ class MakeWasm(Benchmark):
             ],
             cwd=suite_path,
         )
+
+        wasmtime.compile_cwasm(suite_path / wasm_file, output_dir / cwasm_file)
+
+        command = wasmtime.run_cwasm_shell_command(output_dir / cwasm_file)
+        return command
 
 
 @typechecked
@@ -87,10 +103,16 @@ class Wat(Benchmark):
         self.file: str = file
         self.invoke: Optional[str] = invoke
 
-    def build(self, suite_path, reference_interpreter, binaryen):
-        input = Path(suite_path) / (self.file + ".wat")
-        output = Path(suite_path) / (self.file + ".wasm")
-        reference_interpreter.compile(input, output)
+    def prepare(
+        self, suite, output_dir: Path, reference_interpreter, binaryen, wasmtime
+    ):
+        suite_path = Path(suite.path)
+        wat_path = suite_path / (self.file + ".wat")
+        cwasm_path = output_dir / (self.file + ".cwasm")
+
+        wasmtime.compile_cwasm(wat_path, cwasm_path)
+
+        return wasmtime.run_cwasm_shell_command(cwasm_path, invoke_function=self.invoke)
 
 
 @typechecked
@@ -187,20 +209,23 @@ class Wasmtime:
             self.path,
         )
 
-    def compile_cwasm(self, input_wasm_path, output_cwasm_path):
+    def compile_cwasm(self, input_wasm_path: Path, output_cwasm_path: Path):
         wasmtime = self.executable_path()
         command = "compile"
         args = config.WASMTIME_COMPILE_ARGS
         run_check(
             [wasmtime, "compile"]
             + args
-            + [f"--output={output_cwasm_path}", input_wasm_path],
+            + [
+                f"--output={output_cwasm_path.absolute()}",
+                str(input_wasm_path.absolute()),
+            ],
             f"Failed to compile {input_wasm_path} to  {output_cwasm_path}",
         )
 
     def run_cwasm_shell_command(
         self,
-        cwasm_path,
+        cwasm_path: Path,
         invoke_function=None,
     ):
         wasmtime = self.executable_path()
@@ -213,7 +238,7 @@ class Wasmtime:
             [wasmtime, "run", "--allow-precompiled"]
             + config.WASMTIME_RUN_ARGS
             + extra_args
-            + [cwasm_path]
+            + [str(cwasm_path.absolute())]
         )
         all_escaped = map(lambda part: f"'{part}'", all)
         return " ".join(all_escaped)
@@ -222,7 +247,7 @@ class Wasmtime:
 @typechecked
 class Hyperfine:
     @staticmethod
-    def run(shell_commands, warmup_count=3, json_export_path=None):
+    def run(shell_commands: List[str], warmup_count=3, json_export_path=None):
         args = ["hyperfine", f"--warmup={warmup_count}"]
         if json_export_path:
             args += [f"--export-json={json_export_path}"]
@@ -346,59 +371,54 @@ class Run:
 
         wasmtime.build()
 
-        suite_files = {}
+        suite_shell_commands = {}
 
         # Build benchmarks in each suite
         for suite in config.BENCHMARK_SUITES:
-            path = Path(suite.path)
-            check(path.exists(), f"Found benchmark suite with non-existing path {path}")
+            suite_path = Path(suite.path)
+            check(
+                suite_path.exists(),
+                f"Found benchmark suite with non-existing path {suite_path}",
+            )
 
             if suite.hasMakeBenchmark():
                 # The make files may not be fully aware that various tools changed
-                run_check("make clean", cwd=path)
+                run_check("make clean", cwd=suite_path)
 
-            benchmark_cwasm_paths = []
+            benchmark_commands = []
             for b in suite.benchmarks:
-                benchmark_file = b.file + ".wasm"
-                benchmark_path = path.joinpath(benchmark_file)
+                benchmark_pseudopath = suite_path / b.name
 
                 benchmark_filter = args.filter
-                if benchmark_filter is not None and not benchmark_path.match(
+                if benchmark_filter is not None and not benchmark_pseudopath.match(
                     benchmark_filter
                 ):
                     log(
-                        f"Skipping benchmark {benchmark_path} as it does not match filter"
+                        f"Skipping benchmark {benchmark_pseudopath} as it does not match filter"
                     )
                     continue
 
+                benchmark_output_dir = Path("out") / suite_path / b.name
+                benchmark_output_dir.mkdir(parents=True, exist_ok=True)
+
                 # create .wasm file for each benchmark
-                b.build(
-                    suite_path=path,
-                    reference_interpreter=interpreter,
-                    binaryen=binaryen,
+                benchmark_commands.append(
+                    b.prepare(
+                        suite,
+                        benchmark_output_dir,
+                        reference_interpreter=interpreter,
+                        binaryen=binaryen,
+                        wasmtime=wasmtime,
+                    )
                 )
 
-                # Create .cwasm file for each benchmark
-                benchmark_cwasm_path = path.joinpath(b.file + ".cwasm")
-                wasmtime.compile_cwasm(str(benchmark_path), str(benchmark_cwasm_path))
-
-                benchmark_cwasm_paths.append((b, benchmark_cwasm_path))
-
-            if benchmark_cwasm_paths:
-                suite_files[suite.path] = benchmark_cwasm_paths
+            if benchmark_commands:
+                suite_shell_commands[suite.path] = benchmark_commands
             #
 
         # Perform actual benchmarking in each suite:
-        for suite_path, benchmark_entries in suite_files.items():
-
-            def make_shell_command(arg):
-                (benchmark, cwasm_path) = arg
-                return wasmtime.run_cwasm_shell_command(
-                    cwasm_path, invoke_function=benchmark.invoke
-                )
-
-            wasmtime_run_commmands = list(map(make_shell_command, benchmark_entries))
-            Hyperfine.run(wasmtime_run_commmands)
+        for _suite_path, benchmark_commands in suite_shell_commands.items():
+            Hyperfine.run(benchmark_commands)
 
     @staticmethod
     def addSubparser(subparsers):
@@ -434,7 +454,7 @@ class CompareRevs:
             cwd=cwd,
         )
 
-    def prepare_wasmtime(self, repo_path, revision):
+    def prepare_wasmtime(self, repo_path: Path, revision: str):
 
         wasmtime_repo = GitRepo(repo_path)
 
@@ -449,82 +469,81 @@ class CompareRevs:
         return wasmtime
 
     def execute(self, args):
-        print("run is running")
+        print("compare-revs is running")
 
         (interpreter, binaryen) = build_common_tools()
 
         # Wasmtime1 setup
-        wasmtime1_repo_path = os.path.join(REPOS_PATH, WASMTIME_REPO1)
+        wasmtime1_repo_path = Path(REPOS_PATH) / WASMTIME_REPO1
         wasmtime1 = self.prepare_wasmtime(wasmtime1_repo_path, args.revision1)
 
         # Wasmtime2 setup
-        wasmtime2_repo_path = os.path.join(REPOS_PATH, WASMTIME_REPO2)
+        wasmtime2_repo_path = Path(REPOS_PATH) / WASMTIME_REPO2
         wasmtime2 = self.prepare_wasmtime(wasmtime2_repo_path, args.revision2)
 
         suite_files = {}
 
         # Build benchmarks in each suite
         for suite in config.BENCHMARK_SUITES:
-            path = Path(suite.path)
-            check(path.exists(), f"Found benchmark suite with non-existing path {path}")
+            suite_path = Path(suite.path)
+            check(
+                suite_path.exists(),
+                f"Found benchmark suite with non-existing path {suite_path}",
+            )
 
             if suite.hasMakeBenchmark():
                 # The make files may not be fully aware that various tools changed
-                run_check("make clean", cwd=path)
+                run_check("make clean", cwd=suite_path)
 
-            benchmark_cwasm_pairs = []
+            benchmark_pairs: List[Tuple[Benchmark, List[str], Path]] = []
             for b in suite.benchmarks:
-                benchmark_file = b.file + ".wasm"
-                benchmark_path = path.joinpath(benchmark_file)
+                benchmark_pseudopath = suite_path / b.name
 
                 benchmark_filter = args.filter
-                if benchmark_filter is not None and not benchmark_path.match(
+                if benchmark_filter is not None and not benchmark_pseudopath.match(
                     benchmark_filter
                 ):
                     log(
-                        f"Skipping benchmark {benchmark_path} as it does not match filter"
+                        f"Skipping benchmark {benchmark_pseudopath} as it does not match filter"
                     )
                     continue
 
-                # create .wasm file for each benchmark
-                b.build(
-                    suite_path=path,
+                benchmark_output_dir = Path("out") / suite_path / b.name
+                benchmark_output_dir_rev1 = benchmark_output_dir / "rev1"
+                benchmark_output_dir_rev2 = benchmark_output_dir / "rev2"
+                benchmark_output_dir_rev1.mkdir(parents=True, exist_ok=True)
+                benchmark_output_dir_rev2.mkdir(parents=True, exist_ok=True)
+
+                command1 = b.prepare(
+                    suite,
+                    benchmark_output_dir_rev1,
                     reference_interpreter=interpreter,
                     binaryen=binaryen,
+                    wasmtime=wasmtime1,
                 )
-
-                # Create .cwasm file for each wasmtime version
-                benchmark_cwasm_path1 = path.joinpath(b.file + ".rev1.cwasm")
-                wasmtime1.compile_cwasm(str(benchmark_path), str(benchmark_cwasm_path1))
-
-                benchmark_cwasm_path2 = path.joinpath(b.file + ".rev2.cwasm")
-                wasmtime2.compile_cwasm(str(benchmark_path), str(benchmark_cwasm_path2))
-                json_path = path.joinpath(b.file + ".result.json")
-
-                benchmark_cwasm_pairs.append(
-                    (b, [benchmark_cwasm_path1, benchmark_cwasm_path2], json_path)
+                command2 = b.prepare(
+                    suite,
+                    benchmark_output_dir_rev2,
+                    reference_interpreter=interpreter,
+                    binaryen=binaryen,
+                    wasmtime=wasmtime2,
                 )
+                json_path = benchmark_output_dir / "results.json"
 
-            if benchmark_cwasm_pairs:
-                suite_files[suite.path] = benchmark_cwasm_pairs
+                benchmark_pairs.append((b, [command1, command2], json_path))
+
+            if benchmark_pairs:
+                suite_files[suite.path] = benchmark_pairs
 
         # Perform actual benchmarking in each suite:
-        for suite_path, benchmark_cwasm_pairs in suite_files.items():
-            for bench, cwasms, json_path in benchmark_cwasm_pairs:
-                wasmtime_run_commmands = [
-                    wasmtime1.run_cwasm_shell_command(
-                        cwasms[0], invoke_function=bench.invoke
-                    ),
-                    wasmtime2.run_cwasm_shell_command(
-                        cwasms[1], invoke_function=bench.invoke
-                    ),
-                ]
-                Hyperfine.run(wasmtime_run_commmands, json_export_path=json_path)
+        for suite_path, benchmark_pairs in suite_files.items():
+            for bench, commands, json_path in benchmark_pairs:
+                Hyperfine.run(commands, json_export_path=json_path)
 
         # Print results from each suite
-        for suite_path, benchmark_cwasm_pairs in suite_files.items():
+        for suite_path, benchmark_pairs in suite_files.items():
             print(f"Suite: {suite_path}")
-            for bench, _, json_path in benchmark_cwasm_pairs:
+            for bench, _, json_path in benchmark_pairs:
                 with open(json_path, "r") as f:
                     results = json.load(f)["results"]
                     rev1_mean = results[0]["mean"]
