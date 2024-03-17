@@ -17,25 +17,30 @@ from typeguard import typechecked
 ExitCode = int
 
 
-REPOS_PATH="tools/repos"
-SPEC_REPO="spec"
-BINARYEN_REPO="binaryen"
-WASMTIME_REPO1="wasmtime1"
-WASMTIME_REPO2="wasmtime2"
+REPOS_PATH = "tools/repos"
+SPEC_REPO = "spec"
+BINARYEN_REPO = "binaryen"
+WASMTIME_REPO1 = "wasmtime1"
+WASMTIME_REPO2 = "wasmtime2"
+
 
 @typechecked
 class HarnessError(Exception):
     def __init__(self, msg):
         super().__init__(msg)
 
+
 def check(condition, msg):
     if not condition:
         raise HarnessError(msg)
 
-def log(msg, sep = None):
+
+def log(msg, sep=None):
     print(msg, sep=sep)
 
-SHOW_OUTPUT=True
+
+SHOW_OUTPUT = True
+
 
 @typechecked
 @dataclass
@@ -43,27 +48,41 @@ class Benchmark:
     name: str
     file: str
 
-    def build(self, suite_path, reference_interpreter : "RefeferenceInterpreter", binaryen : "Binaryen"):
+    def build(
+        self,
+        suite_path,
+        reference_interpreter: "RefeferenceInterpreter",
+        binaryen: "Binaryen",
+    ):
         pass
+
 
 @typechecked
 class MakeWasm(Benchmark):
-    def __init__(self, file, name = None,  invoke = None):
+    def __init__(self, file, name=None, invoke=None):
         self.name = name or file
         self.file = file
         self.invoke = invoke
 
-
-    def build(self, suite_path, reference_interpreter , binaryen):
+    def build(self, suite_path, reference_interpreter, binaryen):
         f = self.file + ".wasm"
         reference_interpreter = Path(reference_interpreter.executable_path()).absolute()
         wasm_merge = Path(binaryen.wasm_merge_executable_path()).absolute()
         wasm_opt = Path(binaryen.wasm_opt_executable_path()).absolute()
-        run_check(["make", f] + [f"WASM_INTERP={reference_interpreter}", f"WASM_MERGE={wasm_merge}", f"WASM_OPT={wasm_opt}"], cwd = suite_path)
+        run_check(
+            ["make", f]
+            + [
+                f"WASM_INTERP={reference_interpreter}",
+                f"WASM_MERGE={wasm_merge}",
+                f"WASM_OPT={wasm_opt}",
+            ],
+            cwd=suite_path,
+        )
+
 
 @typechecked
 class Wat(Benchmark):
-    def __init__(self, file, name = None,  invoke = None):
+    def __init__(self, file, name=None, invoke=None):
         self.name = name or file
         self.file = file
         self.invoke = invoke
@@ -72,6 +91,7 @@ class Wat(Benchmark):
         input = Path(suite_path) / (self.file + ".wat")
         output = Path(suite_path) / (self.file + ".wasm")
         reference_interpreter.compile(str(input.absolute()), str(output.absolute()))
+
 
 @typechecked
 @dataclass
@@ -84,27 +104,32 @@ class Suite:
 
 
 @typechecked
-def run(cmd, cwd = None) -> subprocess.CompletedProcess:
+def run(cmd, cwd=None) -> subprocess.CompletedProcess:
     use_shell = not isinstance(cmd, list)
     log(f"cmd is {cmd}, cwd is {cwd}")
-    res = subprocess.run(cmd, cwd=cwd, capture_output=True, shell=use_shell, text = True)
+    res = subprocess.run(cmd, cwd=cwd, capture_output=True, shell=use_shell, text=True)
     if SHOW_OUTPUT:
-        log(res.stdout, sep = "")
-        log(res.stderr, sep = "")
+        log(res.stdout, sep="")
+        log(res.stderr, sep="")
     return res
 
 
 # Like run, but checks that the command finished with non-zero exit code.
 @typechecked
-def run_check(cmd, msg = None, cwd = None):
-    #use_shell = not isinstance(cmd, list)
+def run_check(cmd, msg=None, cwd=None):
+    # use_shell = not isinstance(cmd, list)
     # if isinstance(cmd, list):
     #     cmd = map(lambda part: "'" + part + "'", cmd)
     #     cmd = " ".join(cmd)
     result = run(cmd, cwd)
     msg = msg or f"Running {cmd} in {cwd or os.getcwd()} failed"
-    check(result.returncode == 0, msg + f"\nDetails:\nCommand failed: {cmd}\nStdout: {result.stdout}, Stderr: {result.stderr}")
+    check(
+        result.returncode == 0,
+        msg
+        + f"\nDetails:\nCommand failed: {cmd}\nStdout: {result.stdout}, Stderr: {result.stderr}",
+    )
     return result
+
 
 @typechecked
 class Binaryen:
@@ -114,9 +139,8 @@ class Binaryen:
 
     def build(self):
         cpus = math.ceil(multiprocessing.cpu_count() / 2)
-        run_check("cmake .", msg = "cmake for binaryen failed", cwd = self.path)
-        run_check(f"make -j {cpus}", msg = "building binaryen failed", cwd = self.path)
-
+        run_check("cmake .", msg="cmake for binaryen failed", cwd=self.path)
+        run_check(f"make -j {cpus}", msg="building binaryen failed", cwd=self.path)
 
     def wasm_merge_executable_path(self) -> str:
         return str(os.path.join(self.path, "bin", "wasm-merge"))
@@ -127,7 +151,7 @@ class Binaryen:
 
 @typechecked
 class RefeferenceInterpreter:
-    def __init__(self, path : Path):
+    def __init__(self, path: Path):
         self.path = path
 
     def executable_path(self):
@@ -141,9 +165,8 @@ class RefeferenceInterpreter:
         run_check(f"{wasm} -d '{input_path}' -o '{output_path}'", self.path)
 
 
-
 class Wasmtime:
-    def __init__(self, path : Path, release_build = True):
+    def __init__(self, path: Path, release_build=True):
         self.path = path
         self.release_build = release_build
 
@@ -153,40 +176,55 @@ class Wasmtime:
         else:
             return os.path.join(self.path, "target/debug/wasmtime")
 
-
     def build(self):
         # For the tim
         release = ["--release"] if self.release_build else []
-        run_check(["cargo", "build"] + release + config.WASMTIME_CARGO_BUILD_ARGS, "Failed to build wasmtime", self.path)
-
+        run_check(
+            ["cargo", "build"] + release + config.WASMTIME_CARGO_BUILD_ARGS,
+            "Failed to build wasmtime",
+            self.path,
+        )
 
     def compile_cwasm(self, input_wasm_path, output_cwasm_path):
         wasmtime = self.executable_path()
         command = "compile"
         args = config.WASMTIME_COMPILE_ARGS
-        run_check([wasmtime, "compile" ] + args + [f"--output={output_cwasm_path}", input_wasm_path], f"Failed to compile {input_wasm_path} to  {output_cwasm_path}" )
+        run_check(
+            [wasmtime, "compile"]
+            + args
+            + [f"--output={output_cwasm_path}", input_wasm_path],
+            f"Failed to compile {input_wasm_path} to  {output_cwasm_path}",
+        )
 
-    def run_cwasm_shell_command(self, cwasm_path, invoke_function = None, ):
+    def run_cwasm_shell_command(
+        self,
+        cwasm_path,
+        invoke_function=None,
+    ):
         wasmtime = self.executable_path()
         command = "run"
         extra_args = []
         if invoke_function:
             extra_args += [f"--invoke={invoke_function}"]
 
-        all = [wasmtime , "run", "--allow-precompiled"] + config.WASMTIME_RUN_ARGS + extra_args + [cwasm_path]
+        all = (
+            [wasmtime, "run", "--allow-precompiled"]
+            + config.WASMTIME_RUN_ARGS
+            + extra_args
+            + [cwasm_path]
+        )
         all_escaped = map(lambda part: f"'{part}'", all)
         return " ".join(all_escaped)
+
 
 @typechecked
 class Hyperfine:
     @staticmethod
-    def run(shell_commands, warmup_count = 3, json_export_path = None):
+    def run(shell_commands, warmup_count=3, json_export_path=None):
         args = ["hyperfine", f"--warmup={warmup_count}"]
         if json_export_path:
             args += [f"--export-json={json_export_path}"]
         run_check(args + shell_commands)
-
-
 
 
 # Helper class for working at a git repo (or a working tree of a git repo) at a given path.
@@ -196,34 +234,35 @@ class GitRepo:
     def __init__(self, path):
         self.path = path
 
-        check(GitRepo.is_root_of_repo_or_worktree(path),
-              f"{path} is not the root of a git repository (or a worktree of a repository)")
-
+        check(
+            GitRepo.is_root_of_repo_or_worktree(path),
+            f"{path} is not the root of a git repository (or a worktree of a repository)",
+        )
 
     @staticmethod
     def is_root_of_repo_or_worktree(path):
-        res = run("git rev-parse --show-toplevel", cwd = path)
+        res = run("git rev-parse --show-toplevel", cwd=path)
         if res.returncode != 0:
             return False
         toplevel_path = res.stdout.strip()
         return Path(toplevel_path).absolute() == Path(path).absolute()
 
-
     # This uses run_check, use only for git commands that are not allowed to fail
     def git(self, args):
         return run_check("git " + args, cwd=self.path)
 
-
-    def is_dirty(self, allow_untracked = True):
+    def is_dirty(self, allow_untracked=True):
         untracked_mode = "no" if allow_untracked else "normal"
         res = self.git(f"status --untracked-files={untracked_mode} --porcelain")
         # the --porcelain option makes the output stable, where no output means clean repository
         return res.stdout.strip() != ""
 
-
     # TODO Do we always need to also update submodules?
     def checkout(self, revision):
-        check(not self.is_dirty(), f"Cannot checkout git repo at {self.path} to {revision} because it is dirty")
+        check(
+            not self.is_dirty(),
+            f"Cannot checkout git repo at {self.path} to {revision} because it is dirty",
+        )
         self.git(f"switch --detach {revision}")
         self.git("submodule update --init --recursive")
 
@@ -233,36 +272,36 @@ class GitRepo:
 def build_common_tools():
     # Reference interpreter setup
 
-   spec_repo_path = os.path.join(REPOS_PATH, SPEC_REPO)
-   log(f"spec repo expected at {spec_repo_path}")
+    spec_repo_path = os.path.join(REPOS_PATH, SPEC_REPO)
+    log(f"spec repo expected at {spec_repo_path}")
 
-   spec_repo = GitRepo(spec_repo_path)
+    spec_repo = GitRepo(spec_repo_path)
 
-   log(f"spec repo dirty? {spec_repo.is_dirty()}")
+    log(f"spec repo dirty? {spec_repo.is_dirty()}")
 
-   spec_repo.checkout(config.SPEC_COMMIT)
+    spec_repo.checkout(config.SPEC_COMMIT)
 
-   interpreter_path = Path(os.path.join(spec_repo_path, "interpreter"))
-   interpreter = RefeferenceInterpreter(interpreter_path)
+    interpreter_path = Path(os.path.join(spec_repo_path, "interpreter"))
+    interpreter = RefeferenceInterpreter(interpreter_path)
 
-   interpreter.build()
+    interpreter.build()
 
+    # Binaryen setup
+    binaryen_repo_path = Path(REPOS_PATH) / BINARYEN_REPO
+    log(f"binaryen repo expected at {binaryen_repo_path}")
 
-   # Binaryen setup
-   binaryen_repo_path = Path(REPOS_PATH) / BINARYEN_REPO
-   log(f"binaryen repo expected at {binaryen_repo_path}")
+    binaryen_repo = GitRepo(binaryen_repo_path)
 
-   binaryen_repo = GitRepo(binaryen_repo_path)
+    log(f"binaryen repo dirty? {binaryen_repo.is_dirty()}")
 
-   log(f"binaryen repo dirty? {binaryen_repo.is_dirty()}")
+    binaryen_repo.checkout(config.BINARYEN_COMMIT)
 
-   binaryen_repo.checkout(config.BINARYEN_COMMIT)
+    binaryen = Binaryen(binaryen_repo_path)
 
-   binaryen = Binaryen(binaryen_repo_path)
+    binaryen.build()
 
-   binaryen.build()
+    return (interpreter, binaryen)
 
-   return (interpreter, binaryen)
 
 # The run command, which just runs the benchmarks
 @typechecked
@@ -270,17 +309,24 @@ class Run:
     def __init__(self):
         pass
 
-
     def make(self):
         pass
 
     @staticmethod
     def run_macro_make(args, reference_interpreter, wasm_merge, wasm_opt, cwd):
-        run_check(["make"] + args + [f"WASM_INTERP={reference_interpreter}", f"WASM_MERGE={wasm_merge}", f"WASM_OPT={wasm_opt}"], cwd = cwd)
+        run_check(
+            ["make"]
+            + args
+            + [
+                f"WASM_INTERP={reference_interpreter}",
+                f"WASM_MERGE={wasm_merge}",
+                f"WASM_OPT={wasm_opt}",
+            ],
+            cwd=cwd,
+        )
 
     def execute(self, args):
         print("run is running")
-
 
         (interpreter, binaryen) = build_common_tools()
 
@@ -307,9 +353,7 @@ class Run:
 
             if suite.hasMakeBenchmark():
                 # The make files may not be fully aware that various tools changed
-                run_check("make clean", cwd = path)
-
-
+                run_check("make clean", cwd=path)
 
             benchmark_cwasm_paths = []
             for b in suite.benchmarks:
@@ -317,15 +361,20 @@ class Run:
                 benchmark_path = path.joinpath(benchmark_file)
 
                 benchmark_filter = args.filter
-                if benchmark_filter is not None and not benchmark_path.match(benchmark_filter):
-                    log(f"Skipping benchmark {benchmark_path} as it does not match filter")
+                if benchmark_filter is not None and not benchmark_path.match(
+                    benchmark_filter
+                ):
+                    log(
+                        f"Skipping benchmark {benchmark_path} as it does not match filter"
+                    )
                     continue
 
-
                 # create .wasm file for each benchmark
-                b.build(suite_path=path,
-                        reference_interpreter=interpreter,
-                        binaryen=binaryen)
+                b.build(
+                    suite_path=path,
+                    reference_interpreter=interpreter,
+                    binaryen=binaryen,
+                )
 
                 # Create .cwasm file for each benchmark
                 benchmark_cwasm_path = path.joinpath(b.file + ".cwasm")
@@ -337,22 +386,29 @@ class Run:
                 suite_files[suite.path] = benchmark_cwasm_paths
             #
 
-
         # Perform actual benchmarking in each suite:
-        for (suite_path, benchmark_entries) in suite_files.items():
+        for suite_path, benchmark_entries in suite_files.items():
+
             def make_shell_command(arg):
                 (benchmark, cwasm_path) = arg
-                return wasmtime.run_cwasm_shell_command(cwasm_path, invoke_function = benchmark.invoke)
+                return wasmtime.run_cwasm_shell_command(
+                    cwasm_path, invoke_function=benchmark.invoke
+                )
 
             wasmtime_run_commmands = list(map(make_shell_command, benchmark_entries))
             Hyperfine.run(wasmtime_run_commmands)
 
-
     @staticmethod
     def addSubparser(subparsers):
-        parser = subparsers.add_parser("run", help = "runs benchmarks (used by default)")
-        parser.add_argument("--filter", help="Only run benchmarks that match this glob pattern")
-        parser.add_argument("--allow-dirty", help = "Allows the benchfx, binaryen, spec and wasmtime repos to be dirty", action = "store_true")
+        parser = subparsers.add_parser("run", help="runs benchmarks (used by default)")
+        parser.add_argument(
+            "--filter", help="Only run benchmarks that match this glob pattern"
+        )
+        parser.add_argument(
+            "--allow-dirty",
+            help="Allows the benchfx, binaryen, spec and wasmtime repos to be dirty",
+            action="store_true",
+        )
 
 
 @typechecked
@@ -365,7 +421,16 @@ class CompareRevs:
 
     @staticmethod
     def run_macro_make(args, reference_interpreter, wasm_merge, wasm_opt, cwd):
-        run_check(["make"] + args + [f"WASM_INTERP={reference_interpreter}", f"WASM_MERGE={wasm_merge}", f"WASM_OPT={wasm_opt}"], cwd = cwd)
+        run_check(
+            ["make"]
+            + args
+            + [
+                f"WASM_INTERP={reference_interpreter}",
+                f"WASM_MERGE={wasm_merge}",
+                f"WASM_OPT={wasm_opt}",
+            ],
+            cwd=cwd,
+        )
 
     def prepare_wasmtime(self, repo_path, revision):
 
@@ -381,10 +446,8 @@ class CompareRevs:
 
         return wasmtime
 
-
     def execute(self, args):
         print("run is running")
-
 
         (interpreter, binaryen) = build_common_tools()
 
@@ -405,8 +468,7 @@ class CompareRevs:
 
             if suite.hasMakeBenchmark():
                 # The make files may not be fully aware that various tools changed
-                run_check("make clean", cwd = path)
-
+                run_check("make clean", cwd=path)
 
             benchmark_cwasm_pairs = []
             for b in suite.benchmarks:
@@ -414,16 +476,20 @@ class CompareRevs:
                 benchmark_path = path.joinpath(benchmark_file)
 
                 benchmark_filter = args.filter
-                if benchmark_filter is not None and not benchmark_path.match(benchmark_filter):
-                    log(f"Skipping benchmark {benchmark_path} as it does not match filter")
+                if benchmark_filter is not None and not benchmark_path.match(
+                    benchmark_filter
+                ):
+                    log(
+                        f"Skipping benchmark {benchmark_path} as it does not match filter"
+                    )
                     continue
 
-
                 # create .wasm file for each benchmark
-                b.build(suite_path=path,
-                        reference_interpreter=interpreter,
-                        binaryen=binaryen)
-
+                b.build(
+                    suite_path=path,
+                    reference_interpreter=interpreter,
+                    binaryen=binaryen,
+                )
 
                 # Create .cwasm file for each wasmtime version
                 benchmark_cwasm_path1 = path.joinpath(b.file + ".rev1.cwasm")
@@ -433,46 +499,64 @@ class CompareRevs:
                 wasmtime2.compile_cwasm(str(benchmark_path), str(benchmark_cwasm_path2))
                 json_path = path.joinpath(b.file + ".result.json")
 
-                benchmark_cwasm_pairs.append((b, [benchmark_cwasm_path1, benchmark_cwasm_path2], json_path))
+                benchmark_cwasm_pairs.append(
+                    (b, [benchmark_cwasm_path1, benchmark_cwasm_path2], json_path)
+                )
 
             if benchmark_cwasm_pairs:
                 suite_files[suite.path] = benchmark_cwasm_pairs
 
-
-
         # Perform actual benchmarking in each suite:
-        for (suite_path, benchmark_cwasm_pairs) in suite_files.items():
-            for (bench, cwasms, json_path) in benchmark_cwasm_pairs:
-                wasmtime_run_commmands = [wasmtime1.run_cwasm_shell_command(cwasms[0], invoke_function=bench.invoke),
-                                          wasmtime2.run_cwasm_shell_command(cwasms[1], invoke_function=bench.invoke)]
-                Hyperfine.run(wasmtime_run_commmands, json_export_path = json_path)
+        for suite_path, benchmark_cwasm_pairs in suite_files.items():
+            for bench, cwasms, json_path in benchmark_cwasm_pairs:
+                wasmtime_run_commmands = [
+                    wasmtime1.run_cwasm_shell_command(
+                        cwasms[0], invoke_function=bench.invoke
+                    ),
+                    wasmtime2.run_cwasm_shell_command(
+                        cwasms[1], invoke_function=bench.invoke
+                    ),
+                ]
+                Hyperfine.run(wasmtime_run_commmands, json_export_path=json_path)
 
         # Print results from each suite
-        for (suite_path, benchmark_cwasm_pairs) in suite_files.items():
+        for suite_path, benchmark_cwasm_pairs in suite_files.items():
             print(f"Suite: {suite_path}")
-            for (bench, _, json_path) in benchmark_cwasm_pairs:
-                with open(json_path, 'r') as f:
+            for bench, _, json_path in benchmark_cwasm_pairs:
+                with open(json_path, "r") as f:
                     results = json.load(f)["results"]
                     rev1_mean = results[0]["mean"]
                     rev2_mean = results[1]["mean"]
                     print(f"{bench.name}: {rev1_mean / rev2_mean}")
 
-            
-
-
     @staticmethod
     def addSubparser(subparsers):
-        parser = subparsers.add_parser("compare-revs", help = "Run benchmarks using two wasmtime revisions and compare results")
-        parser.add_argument("--filter", help = "Only run benchmarks that match this glob pattern")
-        parser.add_argument("--allow-dirty", help = "Allows the benchfx, binaryen, spec and wasmtime repos to be dirty")
-        parser.add_argument("revision1", help = "First Wasmtime revision to use in the comparison")
-        parser.add_argument("revision2", help = "Second Wasmtime revision to use in the comparison")
+        parser = subparsers.add_parser(
+            "compare-revs",
+            help="Run benchmarks using two wasmtime revisions and compare results",
+        )
+        parser.add_argument(
+            "--filter", help="Only run benchmarks that match this glob pattern"
+        )
+        parser.add_argument(
+            "--allow-dirty",
+            help="Allows the benchfx, binaryen, spec and wasmtime repos to be dirty",
+        )
+        parser.add_argument(
+            "revision1", help="First Wasmtime revision to use in the comparison"
+        )
+        parser.add_argument(
+            "revision2", help="Second Wasmtime revision to use in the comparison"
+        )
+
 
 def main():
-    parser = argparse.ArgumentParser(prog='bench')
+    parser = argparse.ArgumentParser(prog="bench")
 
     subcommands = [Run, CompareRevs]
-    subparsers = parser.add_subparsers(title = "Available subcommands", dest = "command", required = True)
+    subparsers = parser.add_subparsers(
+        title="Available subcommands", dest="command", required=True
+    )
 
     # This is supposed to make the  default command "run", but doesn't quite work
     # parser.set_defaults(command = "run")
@@ -484,9 +568,10 @@ def main():
     print(args)
 
     match args.command:
-        case "run": Run().execute(args)
-        case "compare-revs": CompareRevs().execute(args)
-
+        case "run":
+            Run().execute(args)
+        case "compare-revs":
+            CompareRevs().execute(args)
 
 
 if __name__ == "__main__":
