@@ -12,6 +12,8 @@ import git
 from pathlib import Path
 import os
 
+from typeguard import typechecked
+
 ExitCode = int
 
 
@@ -21,6 +23,7 @@ BINARYEN_REPO="binaryen"
 WASMTIME_REPO1="wasmtime1"
 WASMTIME_REPO2="wasmtime2"
 
+@typechecked
 class HarnessError(Exception):
     def __init__(self, msg):
         super().__init__(msg)
@@ -34,15 +37,16 @@ def log(msg, sep = None):
 
 SHOW_OUTPUT=True
 
+@typechecked
 @dataclass
 class Benchmark:
     name: str
     file: str
 
-    def build(self, suite_path, reference_interpreter, wasm_merge, wasm_opt):
+    def build(self, suite_path, reference_interpreter : "RefeferenceInterpreter", binaryen : "Binaryen"):
         pass
 
-
+@typechecked
 class MakeWasm(Benchmark):
     def __init__(self, file, name = None,  invoke = None):
         self.name = name or file
@@ -50,14 +54,14 @@ class MakeWasm(Benchmark):
         self.invoke = invoke
 
 
-    def build(self, suite_path, reference_interpreter, binaryen):
+    def build(self, suite_path, reference_interpreter , binaryen):
         f = self.file + ".wasm"
         reference_interpreter = Path(reference_interpreter.executable_path()).absolute()
         wasm_merge = Path(binaryen.wasm_merge_executable_path()).absolute()
         wasm_opt = Path(binaryen.wasm_opt_executable_path()).absolute()
         run_check(["make", f] + [f"WASM_INTERP={reference_interpreter}", f"WASM_MERGE={wasm_merge}", f"WASM_OPT={wasm_opt}"], cwd = suite_path)
 
-
+@typechecked
 class Wat(Benchmark):
     def __init__(self, file, name = None,  invoke = None):
         self.name = name or file
@@ -69,6 +73,7 @@ class Wat(Benchmark):
         output = Path(suite_path) / (self.file + ".wasm")
         reference_interpreter.compile(str(input.absolute()), str(output.absolute()))
 
+@typechecked
 @dataclass
 class Suite:
     path: str
@@ -78,7 +83,7 @@ class Suite:
         return any(map(lambda b: isinstance(b, MakeWasm), self.benchmarks))
 
 
-
+@typechecked
 def run(cmd, cwd = None) -> subprocess.CompletedProcess:
     use_shell = not isinstance(cmd, list)
     log(f"cmd is {cmd}, cwd is {cwd}")
@@ -90,6 +95,7 @@ def run(cmd, cwd = None) -> subprocess.CompletedProcess:
 
 
 # Like run, but checks that the command finished with non-zero exit code.
+@typechecked
 def run_check(cmd, msg = None, cwd = None):
     #use_shell = not isinstance(cmd, list)
     # if isinstance(cmd, list):
@@ -100,7 +106,7 @@ def run_check(cmd, msg = None, cwd = None):
     check(result.returncode == 0, msg + f"\nDetails:\nCommand failed: {cmd}\nStdout: {result.stdout}, Stderr: {result.stderr}")
     return result
 
-
+@typechecked
 class Binaryen:
 
     def __init__(self, path: Path):
@@ -119,7 +125,7 @@ class Binaryen:
         return str(os.path.join(self.path, "bin", "wasm-opt"))
 
 
-
+@typechecked
 class RefeferenceInterpreter:
     def __init__(self, path : Path):
         self.path = path
@@ -171,6 +177,7 @@ class Wasmtime:
         all_escaped = map(lambda part: f"'{part}'", all)
         return " ".join(all_escaped)
 
+@typechecked
 class Hyperfine:
     @staticmethod
     def run(shell_commands, warmup_count = 3, json_export_path = None):
@@ -184,6 +191,7 @@ class Hyperfine:
 
 # Helper class for working at a git repo (or a working tree of a git repo) at a given path.
 # This is mostly a wrapper around GitPyhton's git.Repo type
+@typechecked
 class GitRepo:
     def __init__(self, path):
         self.path = path
@@ -221,6 +229,7 @@ class GitRepo:
 
 
 # Builds the reference interpreter and binaryen
+@typechecked
 def build_common_tools():
     # Reference interpreter setup
 
@@ -233,14 +242,14 @@ def build_common_tools():
 
    spec_repo.checkout(config.SPEC_COMMIT)
 
-   interpreter_path = os.path.join(spec_repo_path, "interpreter")
+   interpreter_path = Path(os.path.join(spec_repo_path, "interpreter"))
    interpreter = RefeferenceInterpreter(interpreter_path)
 
    interpreter.build()
 
 
    # Binaryen setup
-   binaryen_repo_path = os.path.join(REPOS_PATH, BINARYEN_REPO)
+   binaryen_repo_path = Path(REPOS_PATH) / BINARYEN_REPO
    log(f"binaryen repo expected at {binaryen_repo_path}")
 
    binaryen_repo = GitRepo(binaryen_repo_path)
@@ -256,6 +265,7 @@ def build_common_tools():
    return (interpreter, binaryen)
 
 # The run command, which just runs the benchmarks
+@typechecked
 class Run:
     def __init__(self):
         pass
@@ -275,7 +285,7 @@ class Run:
         (interpreter, binaryen) = build_common_tools()
 
         # Wasmtime setup
-        wasmtime_repo_path = os.path.join(REPOS_PATH, WASMTIME_REPO1)
+        wasmtime_repo_path = Path(REPOS_PATH) / WASMTIME_REPO1
         log(f"wasmtime repo expected at {wasmtime_repo_path}")
 
         wasmtime_repo = GitRepo(wasmtime_repo_path)
@@ -345,6 +355,7 @@ class Run:
         parser.add_argument("--allow-dirty", help = "Allows the benchfx, binaryen, spec and wasmtime repos to be dirty", action = "store_true")
 
 
+@typechecked
 class CompareRevs:
     def __init__(self):
         pass
