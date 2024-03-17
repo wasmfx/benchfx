@@ -4,6 +4,7 @@ import multiprocessing
 import math
 import config
 import json
+import shlex
 
 from typing import List, Tuple, Optional
 from pathlib import Path
@@ -126,10 +127,14 @@ class Suite:
 
 
 @typechecked
-def run(cmd, cwd=None) -> subprocess.CompletedProcess:
-    use_shell = not isinstance(cmd, list)
-    log(f"cmd is {cmd}, cwd is {cwd}")
-    res = subprocess.run(cmd, cwd=cwd, capture_output=True, shell=use_shell, text=True)
+def run(cmd: str | List[str], cwd=None) -> subprocess.CompletedProcess:
+    if isinstance(cmd, list):
+        command = shlex.join(cmd)
+    else:
+        command = cmd
+    cwd_msg = f" in directory {cwd}" if cwd is not None else ""
+    log(f"Running command{cwd_msg}:\n{command}")
+    res = subprocess.run(command, cwd=cwd, capture_output=True, shell=True, text=True)
     if SHOW_OUTPUT:
         log(res.stdout, sep="")
         log(res.stderr, sep="")
@@ -139,10 +144,6 @@ def run(cmd, cwd=None) -> subprocess.CompletedProcess:
 # Like run, but checks that the command finished with non-zero exit code.
 @typechecked
 def run_check(cmd, msg=None, cwd=None):
-    # use_shell = not isinstance(cmd, list)
-    # if isinstance(cmd, list):
-    #     cmd = map(lambda part: "'" + part + "'", cmd)
-    #     cmd = " ".join(cmd)
     result = run(cmd, cwd)
     msg = msg or f"Running {cmd} in {cwd or os.getcwd()} failed"
     check(
@@ -234,14 +235,14 @@ class Wasmtime:
         if invoke_function:
             extra_args += [f"--invoke={invoke_function}"]
 
-        all = (
+        cmd = (
             [wasmtime, "run", "--allow-precompiled"]
             + config.WASMTIME_RUN_ARGS
             + extra_args
             + [str(cwasm_path.absolute())]
         )
-        all_escaped = map(lambda part: f"'{part}'", all)
-        return " ".join(all_escaped)
+
+        return shlex.join(cmd)
 
 
 @typechecked
