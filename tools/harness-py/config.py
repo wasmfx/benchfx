@@ -13,6 +13,9 @@ BENCHMARK_SUITES : List[Suite]= [
 
     Suite(path = "micro/suspend_resume",
           benchmarks = [Wat("bench", invoke="run")]),
+
+    Suite(path = "micro/2resumes_same_function",
+          benchmarks = [Wat("bench", invoke="run")]),
 ]
 
 BINARYEN_COMMIT = "30408729702df540930801708950678a54a7afe3"
