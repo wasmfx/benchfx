@@ -542,6 +542,9 @@ class CompareRevs:
                 Hyperfine.run(commands, json_export_path=json_path)
 
         # Print results from each suite
+        print(
+            "Results: (for each benchmark, showing mean runtime in rev1 / mean runtime in rev2)"
+        )
         for suite_path, benchmark_pairs in suite_files.items():
             print(f"Suite: {suite_path}")
             for bench, _, json_path in benchmark_pairs:
