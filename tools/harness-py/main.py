@@ -390,9 +390,9 @@ class Run:
             for b in suite.benchmarks:
                 benchmark_pseudopath = suite_path / b.name
 
-                benchmark_filter = args.filter
-                if benchmark_filter is not None and not benchmark_pseudopath.match(
-                    benchmark_filter
+                benchmark_filters = args.filter
+                if benchmark_filters and not any(
+                    map(benchmark_pseudopath.match, benchmark_filters)
                 ):
                     log(
                         f"Skipping benchmark {benchmark_pseudopath} as it does not match filter"
@@ -425,7 +425,9 @@ class Run:
     def addSubparser(subparsers):
         parser = subparsers.add_parser("run", help="runs benchmarks (used by default)")
         parser.add_argument(
-            "--filter", help="Only run benchmarks that match this glob pattern"
+            "--filter",
+            help="Only run benchmarks that match this glob pattern",
+            action="append",
         )
         parser.add_argument(
             "--allow-dirty",
@@ -500,9 +502,9 @@ class CompareRevs:
             for b in suite.benchmarks:
                 benchmark_pseudopath = suite_path / b.name
 
-                benchmark_filter = args.filter
-                if benchmark_filter is not None and not benchmark_pseudopath.match(
-                    benchmark_filter
+                benchmark_filters = args.filter
+                if benchmark_filters and not any(
+                    map(benchmark_pseudopath.match, benchmark_filters)
                 ):
                     log(
                         f"Skipping benchmark {benchmark_pseudopath} as it does not match filter"
@@ -561,7 +563,9 @@ class CompareRevs:
             help="Run benchmarks using two wasmtime revisions and compare results",
         )
         parser.add_argument(
-            "--filter", help="Only run benchmarks that match this glob pattern"
+            "--filter",
+            help="Only run benchmarks that match this glob pattern",
+            action="append",
         )
         parser.add_argument(
             "--allow-dirty",
