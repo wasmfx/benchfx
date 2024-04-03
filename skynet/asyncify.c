@@ -22,7 +22,7 @@ void yield(uint64_t value) {
                       // asyncify from corrupting its own state.
                       // Doesn't seem to be necessary anymore since
                       // binaryen version 116 (more testing
-                      // requires). Removing this significantly alters
+                      // required). Removing this significantly alters
                       // the generated code.
 }
 
