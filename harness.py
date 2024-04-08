@@ -375,11 +375,17 @@ class GitRepo:
     # TODO Do we always need to also update submodules?
     def checkout(self, revision):
         check(
-            not self.is_dirty(),
+            not self.is_dirty(allow_untracked=False),
             f"Cannot checkout git repo at {self.path} to {revision} because it is dirty",
         )
         self.git(f"switch --detach {revision}")
         self.git("submodule update --init --recursive")
+
+        # We are very strict about changed and untracked files, to avoid
+        # subsequent failures: We required above that the repo is clean, not
+        # even having untracked files. After checking out, we then remove all
+        # newly untracked files, too.
+        self.git("clean -df")
 
 
 # Builds the reference interpreter and binaryen
