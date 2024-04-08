@@ -1,5 +1,5 @@
 from typing import List
-from main import Suite, Benchmark, MakeWasm, Wat
+from harness import Suite, Benchmark, MakeWasm, Wat
 
 BENCHMARK_SUITES : List[Suite]= [
     Suite(path = "c10m",
