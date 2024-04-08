@@ -25,6 +25,7 @@ ExitCode = int
 REPOS_PATH = "tools/repos"
 SPEC_REPO = "spec"
 BINARYEN_REPO = "binaryen"
+MIMALLOC_REPO = "mimalloc"
 WASMTIME_REPO1 = "wasmtime1"
 WASMTIME_REPO2 = "wasmtime2"
 
@@ -57,6 +58,7 @@ class Benchmark:
         self,
         suite: "Suite",
         output_dir: Path,
+        mimalloc: "Mimalloc",
         reference_interpreter: "ReferenceInterpreter",
         binaryen: "Binaryen",
         wasmtime: "Wasmtime",
@@ -73,7 +75,13 @@ class MakeWasm(Benchmark):
         self.invoke: Optional[str] = invoke
 
     def prepare(
-        self, suite, output_dir: Path, reference_interpreter, binaryen, wasmtime
+        self,
+        suite,
+        output_dir: Path,
+        mimalloc,
+        reference_interpreter,
+        binaryen,
+        wasmtime,
     ):
         wasm_file = self.file + ".wasm"
         cwasm_file = self.file + ".cwasm"
@@ -93,8 +101,8 @@ class MakeWasm(Benchmark):
 
         wasmtime.compile_cwasm(suite_path / wasm_file, output_dir / cwasm_file)
 
-        command = wasmtime.run_cwasm_shell_command(output_dir / cwasm_file)
-        return command
+        run_command = wasmtime.run_cwasm_shell_command(output_dir / cwasm_file)
+        return mimalloc.add_to_shell_commmand(run_command)
 
 
 @typechecked
@@ -105,7 +113,13 @@ class Wat(Benchmark):
         self.invoke: Optional[str] = invoke
 
     def prepare(
-        self, suite, output_dir: Path, reference_interpreter, binaryen, wasmtime
+        self,
+        suite,
+        output_dir: Path,
+        mimalloc,
+        reference_interpreter,
+        binaryen,
+        wasmtime,
     ):
         suite_path = Path(suite.path)
         wat_path = suite_path / (self.file + ".wat")
@@ -113,7 +127,10 @@ class Wat(Benchmark):
 
         wasmtime.compile_cwasm(wat_path, cwasm_path)
 
-        return wasmtime.run_cwasm_shell_command(cwasm_path, invoke_function=self.invoke)
+
+        run_command = wasmtime.run_cwasm_shell_command(cwasm_path, invoke_function=self.invoke)
+
+        return mimalloc.add_to_shell_commmand(run_command)
 
 
 @typechecked
@@ -170,6 +187,29 @@ class Binaryen:
 
     def wasm_opt_executable_path(self) -> str:
         return str(os.path.join(self.path, "bin", "wasm-opt"))
+
+
+@typechecked
+class Mimalloc:
+
+    def __init__(self, path: Path):
+        self.path = path
+
+    def build(self):
+        cpus = multiprocessing.cpu_count()
+        run_check("mkdir -p out", cwd=self.path)
+        out_dir = self.path / "out"
+        run_check("cmake ..", msg="cmake for mimalloc failed", cwd=out_dir)
+        run_check(f"make -j {cpus}", msg="building mimalloc failed", cwd=out_dir)
+
+    def libmimalloc_path(self) -> Path:
+        return self.path / "out" / "libmimalloc.so"
+
+    def add_to_shell_commmand(self, shell_command: str):
+        "Given a shell command, extends it with an appropriate LD_PRELOAD clause to use mimalloc"
+
+        escaped_path = shlex.quote(str(self.libmimalloc_path()))
+        return f"LD_PRELOAD={escaped_path} {shell_command}"
 
 
 @typechecked
@@ -344,9 +384,15 @@ class GitRepo:
 
 # Builds the reference interpreter and binaryen
 @typechecked
-def build_common_tools() -> Tuple[ReferenceInterpreter, Binaryen]:
-    # Reference interpreter setup
+def build_common_tools() -> Tuple[Mimalloc, ReferenceInterpreter, Binaryen]:
+    # Mimalloc setup
+    mimalloc_repo_path = Path(os.path.join(REPOS_PATH, MIMALLOC_REPO))
+    mimalloc_repo = GitRepo(mimalloc_repo_path)
+    mimalloc_repo.checkout(config.MIMALLOC_COMMIT)
+    mimalloc = Mimalloc(mimalloc_repo_path)
+    mimalloc.build()
 
+    # Reference interpreter setup
     spec_repo_path = os.path.join(REPOS_PATH, SPEC_REPO)
     log(f"spec repo expected at {spec_repo_path}")
 
@@ -375,7 +421,7 @@ def build_common_tools() -> Tuple[ReferenceInterpreter, Binaryen]:
 
     binaryen.build()
 
-    return (interpreter, binaryen)
+    return (mimalloc, interpreter, binaryen)
 
 
 @typechecked
@@ -438,7 +484,7 @@ class Run:
     def execute(self, args):
         print("run is running")
 
-        (interpreter, binaryen) = build_common_tools()
+        (mimalloc, interpreter, binaryen) = build_common_tools()
 
         # Wasmtime setup
         wasmtime_repo_path = Path(REPOS_PATH) / WASMTIME_REPO1
@@ -489,6 +535,7 @@ class Run:
                     b.prepare(
                         suite,
                         benchmark_output_dir,
+                        mimalloc=mimalloc,
                         reference_interpreter=interpreter,
                         binaryen=binaryen,
                         wasmtime=wasmtime,
@@ -560,7 +607,7 @@ class CompareRevs:
     def execute(self, args):
         print("compare-revs is running")
 
-        (interpreter, binaryen) = build_common_tools()
+        (mimalloc, interpreter, binaryen) = build_common_tools()
 
         # Wasmtime1 setup
         wasmtime1_repo_path = Path(REPOS_PATH) / WASMTIME_REPO1
@@ -612,6 +659,7 @@ class CompareRevs:
                 command1 = b.prepare(
                     suite,
                     benchmark_output_dir_rev1,
+                    mimalloc=mimalloc,
                     reference_interpreter=interpreter,
                     binaryen=binaryen,
                     wasmtime=wasmtime1,
@@ -619,6 +667,7 @@ class CompareRevs:
                 command2 = b.prepare(
                     suite,
                     benchmark_output_dir_rev2,
+                    mimalloc=mimalloc,
                     reference_interpreter=interpreter,
                     binaryen=binaryen,
                     wasmtime=wasmtime2,

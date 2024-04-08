@@ -18,6 +18,8 @@ BENCHMARK_SUITES : List[Suite]= [
           benchmarks = [Wat("bench", invoke="run")]),
 ]
 
+MIMALLOC_COMMIT = "v2.1.2"
+
 BINARYEN_COMMIT = "30408729702df540930801708950678a54a7afe3"
 
 WASMTIME_COMMIT = "4df0bc599f31f4c1c9099b1439b9751e56db0617"
