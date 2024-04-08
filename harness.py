@@ -127,8 +127,9 @@ class Wat(Benchmark):
 
         wasmtime.compile_cwasm(wat_path, cwasm_path)
 
-
-        run_command = wasmtime.run_cwasm_shell_command(cwasm_path, invoke_function=self.invoke)
+        run_command = wasmtime.run_cwasm_shell_command(
+            cwasm_path, invoke_function=self.invoke
+        )
 
         return mimalloc.add_to_shell_commmand(run_command)
 
@@ -178,7 +179,7 @@ class Binaryen:
         self.path = path
 
     def build(self):
-        cpus = math.ceil(multiprocessing.cpu_count() / 2)
+        cpus = multiprocessing.cpu_count()
         run_check("cmake .", msg="cmake for binaryen failed", cwd=self.path)
         run_check(f"make -j {cpus}", msg="building binaryen failed", cwd=self.path)
 
