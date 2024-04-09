@@ -9,7 +9,6 @@ import shlex
 from typing import List, Tuple, Optional
 from pathlib import Path
 from dataclasses import dataclass, field
-import git
 from pathlib import Path
 
 # High-level file operations
@@ -348,12 +347,41 @@ class Hyperfine:
 @typechecked
 class GitRepo:
     def __init__(self, path):
-        self.path = path
-
+        check(
+            path.exists(),
+            f"Expecting git repo at {path}, but the folder does not exist",
+        )
         check(
             GitRepo.is_root_of_repo_or_worktree(path),
             f"{path} is not the root of a git repository (or a worktree of a repository)",
         )
+        self.path = path
+
+    @staticmethod
+    def init_with_remotes(
+        path: Path, github_remotes: List[Tuple[str, str]]
+    ) -> "GitRepo":
+        check(
+            not path.exists(),
+            f"Asked to init a git repo at {path}, but the folder exists",
+        )
+
+        run_check(f"mkdir -p '{path}'")
+        run_check(f"git init '{path}'")
+
+        repo = GitRepo(path)
+
+        for user_name, repo_name in github_remotes:
+            github_repo_url = f"https://github.com/{user_name}/{repo_name}"
+            repo.git(f"remote add '{user_name}' '{github_repo_url}'")
+
+        repo.git("fetch --all")
+        return repo
+
+    def has_rev(self, rev: str) -> bool:
+        rev = rev + "^{commit}"
+        res = run(f"git rev-parse --verify '{rev}'", cwd=self.path)
+        return res.returncode == 0
 
     @staticmethod
     def is_root_of_repo_or_worktree(path):
@@ -737,6 +765,48 @@ class CompareRevs:
         )
 
 
+@typechecked
+class Setup:
+    def __init__(self):
+        pass
+
+    def make(self):
+        pass
+
+    @staticmethod
+    def addSubparser(subparsers, namespace):
+        parser = subparsers.add_parser(
+            "setup",
+            help="Sets up the repos for the dependencies used by the harness",
+        )
+
+    def execute(self, args):
+        repos = [SPEC_REPO, BINARYEN_REPO, MIMALLOC_REPO]
+
+        def setup_repo(repo_name, expected_root_commit, remotes):
+            path = Path(REPOS_PATH) / repo
+            if path.exists():
+                r = GitRepo(path)
+                check(
+                    r.has_rev(expected_root_commit),
+                    f"Error while setting up {repo} repo at {path}: It exists, but does not contain commit {expected_root_commit}, which we expected to find there",
+                )
+
+            else:
+                GitRepo.init_with_remotes(path, remotes)
+
+        for repo in repos:
+            expected_root_commit, remotes = config.GITHUB_REPOS[repo]
+            setup_repo(repo, expected_root_commit, remotes)
+
+        # # We have multiple wasmtime repos
+        wasmtime_repos = [WASMTIME_REPO1, WASMTIME_REPO2]
+        wasmtime_github_repos = config.GITHUB_REPOS["wasmtime"]
+        for repo in wasmtime_repos:
+            expected_root_commit, remotes = wasmtime_github_repos
+            setup_repo(repo, expected_root_commit, remotes)
+
+
 class ForwardChildNamespaceAction(argparse.Action):
     def __init__(self, option_strings, dest, namespace, forward_to, *args, **kwargs):
         super(ForwardChildNamespaceAction, self).__init__(
@@ -756,7 +826,8 @@ def main():
     parser = argparse.ArgumentParser(prog="bench")
     namespace = argparse.Namespace()
 
-    subcommands = [Run, CompareRevs]
+    subcommands = {"run": Run, "compare-revs": CompareRevs, "setup": Setup}
+
     subparsers = parser.add_subparsers(
         title="Available subcommands", dest="command", required=True
     )
@@ -764,17 +835,14 @@ def main():
     # This is supposed to make the  default command "run", but doesn't quite work
     # parser.set_defaults(command = "run")
 
-    for sc in subcommands:
-        sc.addSubparser(subparsers, namespace)
+    for name, class_ in subcommands.items():
+        class_.addSubparser(subparsers, namespace)
 
     args = parser.parse_args(namespace=namespace)
     print(args)
 
-    match args.command:
-        case "run":
-            Run().execute(args)
-        case "compare-revs":
-            CompareRevs().execute(args)
+    Class_ = subcommands[args.command]
+    Class_().execute(args)
 
 
 if __name__ == "__main__":

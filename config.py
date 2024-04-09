@@ -30,3 +30,26 @@ SPEC_COMMIT="4f8d8c7359e6b157236f9245b2a423be9a117782"
 WASMTIME_CARGO_BUILD_ARGS = ["--features=default,unsafe_disable_continuation_linearity_check"]
 WASMTIME_RUN_ARGS = ["-W=exceptions,function-references,typed-continuations", "-Ccache=n" ]
 WASMTIME_COMPILE_ARGS = [ "-W=exceptions,function-references,typed-continuations", "-Ccache=n"]
+
+
+# Github repos used by setup command.
+# First entry is the initial/root commit of the corresponding repo.
+# List entries are of the form (github_user_name, repo_name)
+GITHUB_REPOS = {
+    "mimalloc": (
+        "234e3a57daa9f2dadc8a57c93d90adce2bbe962e",
+        [("microsoft", "mimalloc")],
+    ),
+    "spec": (
+        "ec38c06717612db984314ceef08878838e1fd9ee",
+        [("wasmfx", "specfx")]
+    ),
+    "binaryen": (
+        "5c839bb462f43f7a356593f537edb08014d0f25f",
+        [("webassembly", "binaryen")],
+    ),
+    "wasmtime": (
+        "399be07fcf00d0974d2a83d1af55f0bee9861d54",
+        [("wasmfx", "wasmfxtime"), ("bytecodealliance", "wasmtime")],
+    ),
+}
