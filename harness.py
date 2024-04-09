@@ -401,7 +401,6 @@ class GitRepo:
         # the --porcelain option makes the output stable, where no output means clean repository
         return res.stdout.strip() != ""
 
-    # TODO Do we always need to also update submodules?
     def checkout(self, revision):
         check(
             not self.is_dirty(allow_untracked=False),
@@ -516,11 +515,8 @@ class Run:
         # Wasmtime setup
         wasmtime_repo_path = Path(REPOS_PATH) / WASMTIME_REPO1
         log(f"wasmtime repo expected at {wasmtime_repo_path}")
-
         wasmtime_repo = GitRepo(wasmtime_repo_path)
-
         log(f"wasmtime repo dirty? {wasmtime_repo.is_dirty()}")
-
         wasmtime_repo.checkout(config.WASMTIME_COMMIT)
         wamtime_config = WasmtimeConfig.from_cli_namespace_object(args.wasmtime)
         wasmtime = Wasmtime(wasmtime_repo_path, wamtime_config)
@@ -618,17 +614,11 @@ class CompareRevs:
         )
 
     def prepare_wasmtime(self, repo_path: Path, revision: str, config: WasmtimeConfig):
-
         wasmtime_repo = GitRepo(repo_path)
-
         log(f"wasmtime repo dirty? {wasmtime_repo.is_dirty()}")
-
         wasmtime_repo.checkout(revision)
-
         wasmtime = Wasmtime(repo_path, config)
-
         wasmtime.build()
-
         return wasmtime
 
     def execute(self, args):
