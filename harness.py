@@ -420,40 +420,32 @@ class GitRepo:
 # Builds the reference interpreter and binaryen
 @typechecked
 def build_common_tools() -> Tuple[Mimalloc, ReferenceInterpreter, Binaryen]:
+    repos_path = Path(REPOS_PATH)
+
     # Mimalloc setup
-    mimalloc_repo_path = Path(os.path.join(REPOS_PATH, MIMALLOC_REPO))
+    mimalloc_repo_path = repos_path / MIMALLOC_REPO
     mimalloc_repo = GitRepo(mimalloc_repo_path)
     mimalloc_repo.checkout(config.MIMALLOC_COMMIT)
     mimalloc = Mimalloc(mimalloc_repo_path)
     mimalloc.build()
 
     # Reference interpreter setup
-    spec_repo_path = os.path.join(REPOS_PATH, SPEC_REPO)
+    spec_repo_path = repos_path / SPEC_REPO
     log(f"spec repo expected at {spec_repo_path}")
-
     spec_repo = GitRepo(spec_repo_path)
-
     log(f"spec repo dirty? {spec_repo.is_dirty()}")
-
     spec_repo.checkout(config.SPEC_COMMIT)
-
     interpreter_path = Path(os.path.join(spec_repo_path, "interpreter"))
     interpreter: ReferenceInterpreter = ReferenceInterpreter(interpreter_path)
-
     interpreter.build()
 
     # Binaryen setup
-    binaryen_repo_path = Path(REPOS_PATH) / BINARYEN_REPO
+    binaryen_repo_path = repos_path / BINARYEN_REPO
     log(f"binaryen repo expected at {binaryen_repo_path}")
-
     binaryen_repo = GitRepo(binaryen_repo_path)
-
     log(f"binaryen repo dirty? {binaryen_repo.is_dirty()}")
-
     binaryen_repo.checkout(config.BINARYEN_COMMIT)
-
     binaryen = Binaryen(binaryen_repo_path)
-
     binaryen.build()
 
     return (mimalloc, interpreter, binaryen)
@@ -822,7 +814,18 @@ class ForwardChildNamespaceAction(argparse.Action):
         self.forward.__call__(parser, self.namespace, values, option_string)
 
 
+def check_build_tools_present():
+    tools = ["make", "cmake", "dune"]
+    for tool in tools:
+        run_check(
+            f"command -v {tool}",
+            f"Could not find '{tool}' executable in $PATH, which this the benchmark harness requires",
+        )
+
+
 def main():
+    check_build_tools_present()
+
     parser = argparse.ArgumentParser(prog="bench")
     namespace = argparse.Namespace()
 
