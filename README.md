@@ -15,7 +15,7 @@ To run the benchmark suite you need the following tools:
 * WASI SDK
 
 The script `setup.sh` attempts to download, unpack, and build the
-latter three.
+latter five.
 
 ## Configure
 
@@ -46,3 +46,19 @@ c10m $ make benchfx-mem
 # Benchmarks the memory usage of WasmFX, Asyncify, and the bespoke implementation
 c10m $ make benchfx-mem
 ```
+
+## Gotchas
+
+* The default fiber stack size may be too small to run WASI programs. It
+  is recommended to run with at least 1mb sized stacks.
+* Fiber stacks are unpooled at the moment, which unfavorably skews the
+  benchmark results.
+* The current implementation does not reference count Wasm `cont`
+  objects, so to avoid generating garbage benchmarks should be run
+  with the compile time feature
+  `unsafe_disable_continuation_linearity_check` which causes Wasm
+  `cont` objects point directly to the underlying fiber object. This
+  is unsafe in general as a continuation are supposed to provide a
+  typed view of its underlying fiber stack at a particular point of
+  suspension. This type may change each suspension, whereas the type
+  of the fiber does not.
