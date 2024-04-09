@@ -57,6 +57,7 @@ class Benchmark:
         self,
         suite: "Suite",
         output_dir: Path,
+        config: "Config",
         mimalloc: "Mimalloc",
         reference_interpreter: "ReferenceInterpreter",
         binaryen: "Binaryen",
@@ -77,6 +78,7 @@ class MakeWasm(Benchmark):
         self,
         suite,
         output_dir: Path,
+        config,
         mimalloc,
         reference_interpreter,
         binaryen,
@@ -98,9 +100,9 @@ class MakeWasm(Benchmark):
             cwd=suite_path,
         )
 
-        wasmtime.compile_cwasm(suite_path / wasm_file, output_dir / cwasm_file)
+        wasmtime.compile_cwasm(config, suite_path / wasm_file, output_dir / cwasm_file)
 
-        run_command = wasmtime.run_cwasm_shell_command(output_dir / cwasm_file)
+        run_command = wasmtime.run_cwasm_shell_command(config, output_dir / cwasm_file)
         return mimalloc.add_to_shell_commmand(run_command)
 
 
@@ -115,6 +117,7 @@ class Wat(Benchmark):
         self,
         suite,
         output_dir: Path,
+        config,
         mimalloc,
         reference_interpreter,
         binaryen,
@@ -124,10 +127,10 @@ class Wat(Benchmark):
         wat_path = suite_path / (self.file + ".wat")
         cwasm_path = output_dir / (self.file + ".cwasm")
 
-        wasmtime.compile_cwasm(wat_path, cwasm_path)
+        wasmtime.compile_cwasm(config, wat_path, cwasm_path)
 
         run_command = wasmtime.run_cwasm_shell_command(
-            cwasm_path, invoke_function=self.invoke
+            config, cwasm_path, invoke_function=self.invoke
         )
 
         return mimalloc.add_to_shell_commmand(run_command)
@@ -231,38 +234,71 @@ class ReferenceInterpreter:
 
 
 @dataclass
-class WasmtimeConfig:
-    cargo_build_args: Optional[List[str]] = None
-    compile_args: Optional[List[str]] = None
-    run_args: Optional[List[str]] = None
+class Config:
+    use_mimalloc: bool = True
+
+    # Wasmtime specific:
+    wasmtime_cargo_build_args: Optional[List[str]] = None
+    wasmtime_compile_args: Optional[List[str]] = None
+    wasmtime_run_args: Optional[List[str]] = None
 
     @staticmethod
-    def from_cli_namespace_object(namespace):
-        cargo_build_args = (
-            None
-            if getattr(namespace, "cargo_build_args", None) == None
-            else shlex.split(namespace.cargo_build_args)
+    def from_cli_namespace_object(namespace, revision_qualifier=None) -> "Config":
+        prefix = revision_qualifier + "_" if revision_qualifier else ""
+
+        def parseYN(attr_name: str, attr_value: str) -> bool:
+            match attr_value.lower():
+                case "y":
+                    return True
+                case "n":
+                    return False
+                case _:
+                    raise HarnessError(
+                        "Expected 'y' or 'n' for {attr_name}, got {attr_value} instead"
+                    )
+
+        def splitMultiArgumentString(_attr_name: str, attr_value: str):
+            return shlex.split(attr_value)
+
+        prop_parsers = {
+            ("use_mimalloc", parseYN),
+            ("wasmtime_cargo_build_args", splitMultiArgumentString),
+            ("wasmtime_compile_args", splitMultiArgumentString),
+            (
+                "wasmtime_run_args",
+                splitMultiArgumentString,
+            ),
+        }
+
+        config = Config()
+
+        for prop_name, parser in prop_parsers:
+            qualified_attr_name = prefix + prop_name
+            attr_val = getattr(namespace, qualified_attr_name, None)
+            val = parser(qualified_attr_name, attr_val) if attr_val else None
+            setattr(config, prop_name, val)
+
+        return config
+
+    def _get_or_default(self, prop, default):
+        return prop if prop is not None else default
+
+    def get_wasmtime_cargo_build_args_or_default(self) -> List[str]:
+        return self._get_or_default(
+            self.wasmtime_cargo_build_args, config.WASMTIME_CARGO_BUILD_ARGS
         )
-        compile_args = (
-            None
-            if getattr(namespace, "compile_args", None) == None
-            else shlex.split(namespace.compile_args)
+
+    def get_wasmtime_compile_args_or_default(self) -> List[str]:
+        return self._get_or_default(
+            self.wasmtime_compile_args, config.WASMTIME_COMPILE_ARGS
         )
-        run_args = (
-            None
-            if getattr(namespace, "run_args", None) == None
-            else shlex.split(namespace.run_args)
-        )
-        # release_build = namespace.release_build
-        return WasmtimeConfig(
-            cargo_build_args=cargo_build_args,
-            compile_args=compile_args,
-            run_args=run_args,
-        )
+
+    def get_wasmtime_run_args_or_default(self) -> List[str]:
+        return self._get_or_default(self.wasmtime_run_args, config.WASMTIME_RUN_ARGS)
 
 
 class Wasmtime:
-    def __init__(self, path: Path, config: WasmtimeConfig, release_build=True):
+    def __init__(self, path: Path, release_build=True):
         self.path = path
         self.release_build = release_build
         self.config = config
@@ -273,32 +309,39 @@ class Wasmtime:
         else:
             return os.path.join(self.path, "target/debug/wasmtime")
 
-    def build(self):
+    def build(self, configuration: Config):
         # For the tim
         release = ["--release"] if self.release_build else []
 
-        extra_args = config.WASMTIME_CARGO_BUILD_ARGS
-        if self.config.cargo_build_args != None:
-            extra_args = self.config.cargo_build_args
-            log("Overriding cargo builds args with " + str(extra_args))
+        if configuration.wasmtime_cargo_build_args is not None:
+            log(
+                "Overriding cargo builds args with "
+                + str(configuration.wasmtime_cargo_build_args)
+            )
+        cargo_build_args = configuration.get_wasmtime_cargo_build_args_or_default()
 
         run_check(
-            ["cargo", "build"] + release + extra_args,
+            ["cargo", "build"] + release + cargo_build_args,
             "Failed to build wasmtime",
             self.path,
         )
 
-    def compile_cwasm(self, input_wasm_path: Path, output_cwasm_path: Path):
+    def compile_cwasm(
+        self, configuration: Config, input_wasm_path: Path, output_cwasm_path: Path
+    ):
         wasmtime = self.executable_path()
         command = "compile"
-        extra_args = config.WASMTIME_COMPILE_ARGS
-        if self.config.compile_args != None:
-            extra_args = self.config.compile_args
-            log("Overriding wasmtime compile args with " + str(extra_args))
+
+        if configuration.wasmtime_compile_args is not None:
+            log(
+                "Overriding wasmtime compile args with "
+                + str(configuration.wasmtime_compile_args)
+            )
+        wasmtime_compile_args = configuration.get_wasmtime_compile_args_or_default()
 
         run_check(
             [wasmtime, "compile"]
-            + extra_args
+            + wasmtime_compile_args
             + [
                 f"--output={output_cwasm_path.absolute()}",
                 str(input_wasm_path.absolute()),
@@ -308,15 +351,19 @@ class Wasmtime:
 
     def run_cwasm_shell_command(
         self,
+        configuration: Config,
         cwasm_path: Path,
         invoke_function=None,
     ):
         wasmtime = self.executable_path()
         command = "run"
-        extra_args = config.WASMTIME_RUN_ARGS
-        if self.config.run_args != None:
-            extra_args = self.config.run_args
-            log("Overriding wasmtime run args with " + str(extra_args))
+
+        if configuration.wasmtime_run_args is not None:
+            log(
+                "Overriding wasmtime run args with "
+                + str(configuration.wasmtime_run_args)
+            )
+        wasmtime_run_args = configuration.get_wasmtime_run_args_or_default()
 
         invoke_args = []
         if invoke_function:
@@ -324,7 +371,7 @@ class Wasmtime:
 
         cmd = (
             [wasmtime, "run", "--allow-precompiled"]
-            + extra_args
+            + wasmtime_run_args
             + invoke_args
             + [str(cwasm_path.absolute())]
         )
@@ -413,7 +460,8 @@ class GitRepo:
         # subsequent failures: We required above that the repo is clean, not
         # even having untracked files. After checking out, we then remove all
         # newly untracked files, too.
-        self.git("clean -df")
+        # NB: Need to provide --force twice in order to delete non-empty directories
+        self.git("clean -d --force --force")
 
 
 # Builds the reference interpreter and binaryen
@@ -451,37 +499,34 @@ def build_common_tools() -> Tuple[Mimalloc, ReferenceInterpreter, Binaryen]:
 
 
 @typechecked
-def add_wasmtime_args_to_subparser(
+def add_revision_specific_args_to_subparser(
     subparser,
-    namespace: argparse.Namespace,
-    suffix: Optional[str] = None,
+    revision_qualifier: Optional[str] = None,
     desc: Optional[str] = None,
 ):
-    wasmtime = "wasmtime" + ("" if suffix == None else suffix)
-    desc = "wasmtime" if desc == None else desc
+    # wasmtime = "wasmtime" + ("" if suffix == None else suffix)
+    desc = f" for {desc}" if desc else ""
+    rev_prefix = revision_qualifier + "-" if revision_qualifier else ""
     subparser.add_argument(
-        f"--{wasmtime}-cargo-build-args",
-        help=f"Instead of config.WASMTIME_CARGO_BUILD_ARGS, use these arguments when running 'cargo build' for {desc}.",
-        action=ForwardChildNamespaceAction,
-        dest="cargo_build_args",
-        namespace=namespace,
-        forward_to=argparse._StoreAction,
+        f"--{rev_prefix}wasmtime-cargo-build-args",
+        help=f"Instead of config.WASMTIME_CARGO_BUILD_ARGS, use these arguments building wasmtime{desc}.",
+        action="store",
     )
     subparser.add_argument(
-        f"--{wasmtime}-run-args",
-        help=f"Instead of config.WASMTIME_RUN_ARGS, use these arguments when executing 'wasmtime run' with {desc}. May be unsupported for certain benchmarks.",
-        action=ForwardChildNamespaceAction,
-        dest="run_args",
-        namespace=namespace,
-        forward_to=argparse._StoreAction,
+        f"--{rev_prefix}wasmtime-run-args",
+        help=f"Instead of config.WASMTIME_RUN_ARGS, use these arguments when executing 'wasmtime run'{desc}. May be unsupported for certain benchmarks.",
+        action="store",
     )
     subparser.add_argument(
-        f"--{wasmtime}-compile-args",
-        help=f"Instead of config.WASMTIME_RUN_ARGS, use these arguments when executing 'wasmtime compile' with {desc}. May be unsupported for certain benchmarks.",
-        action=ForwardChildNamespaceAction,
-        dest="compile_args",
-        namespace=namespace,
-        forward_to=argparse._StoreAction,
+        f"--{rev_prefix}wasmtime-compile-args",
+        help=f"Instead of config.WASMTIME_RUN_ARGS, use these arguments when executing 'wasmtime compile'{desc}. May be unsupported for certain benchmarks.",
+        action="store",
+    )
+    subparser.add_argument(
+        f"--{rev_prefix}use-mimalloc",
+        help=f"Should we use mimalloc instead of standard system allocator when running benchmarks{desc} (allowed values: y/n, default: y)",
+        action="store",
+        default="y",
     )
 
 
@@ -512,16 +557,17 @@ class Run:
 
         (mimalloc, interpreter, binaryen) = build_common_tools()
 
+        configuration = Config.from_cli_namespace_object(args)
+
         # Wasmtime setup
         wasmtime_repo_path = Path(REPOS_PATH) / WASMTIME_REPO1
         log(f"wasmtime repo expected at {wasmtime_repo_path}")
         wasmtime_repo = GitRepo(wasmtime_repo_path)
         log(f"wasmtime repo dirty? {wasmtime_repo.is_dirty()}")
         wasmtime_repo.checkout(config.WASMTIME_COMMIT)
-        wamtime_config = WasmtimeConfig.from_cli_namespace_object(args.wasmtime)
-        wasmtime = Wasmtime(wasmtime_repo_path, wamtime_config)
+        wasmtime = Wasmtime(wasmtime_repo_path)
 
-        wasmtime.build()
+        wasmtime.build(configuration)
 
         suite_shell_commands = {}
 
@@ -558,6 +604,7 @@ class Run:
                     b.prepare(
                         suite,
                         benchmark_output_dir,
+                        configuration,
                         mimalloc=mimalloc,
                         reference_interpreter=interpreter,
                         binaryen=binaryen,
@@ -589,7 +636,7 @@ class Run:
         )
 
         namespace.wasmtime = argparse.Namespace()
-        add_wasmtime_args_to_subparser(parser, namespace.wasmtime)
+        add_revision_specific_args_to_subparser(parser)
 
 
 @typechecked
@@ -613,12 +660,12 @@ class CompareRevs:
             cwd=cwd,
         )
 
-    def prepare_wasmtime(self, repo_path: Path, revision: str, config: WasmtimeConfig):
+    def prepare_wasmtime(self, repo_path: Path, revision: str, configuration: Config):
         wasmtime_repo = GitRepo(repo_path)
         log(f"wasmtime repo dirty? {wasmtime_repo.is_dirty()}")
         wasmtime_repo.checkout(revision)
-        wasmtime = Wasmtime(repo_path, config)
-        wasmtime.build()
+        wasmtime = Wasmtime(repo_path)
+        wasmtime.build(configuration)
         return wasmtime
 
     def execute(self, args):
@@ -626,18 +673,19 @@ class CompareRevs:
 
         (mimalloc, interpreter, binaryen) = build_common_tools()
 
+        rev1_config = Config.from_cli_namespace_object(args, revision_qualifier="rev1")
+        rev2_config = Config.from_cli_namespace_object(args, revision_qualifier="rev2")
+
         # Wasmtime1 setup
         wasmtime1_repo_path = Path(REPOS_PATH) / WASMTIME_REPO1
-        wasmtime1_config = WasmtimeConfig.from_cli_namespace_object(args.wasmtime1)
         wasmtime1 = self.prepare_wasmtime(
-            wasmtime1_repo_path, args.revision1, wasmtime1_config
+            wasmtime1_repo_path, args.revision1, rev1_config
         )
 
         # Wasmtime2 setup
         wasmtime2_repo_path = Path(REPOS_PATH) / WASMTIME_REPO2
-        wasmtime2_config = WasmtimeConfig.from_cli_namespace_object(args.wasmtime2)
         wasmtime2 = self.prepare_wasmtime(
-            wasmtime2_repo_path, args.revision2, wasmtime2_config
+            wasmtime2_repo_path, args.revision2, rev2_config
         )
 
         suite_files = {}
@@ -676,6 +724,7 @@ class CompareRevs:
                 command1 = b.prepare(
                     suite,
                     benchmark_output_dir_rev1,
+                    rev1_config,
                     mimalloc=mimalloc,
                     reference_interpreter=interpreter,
                     binaryen=binaryen,
@@ -684,6 +733,7 @@ class CompareRevs:
                 command2 = b.prepare(
                     suite,
                     benchmark_output_dir_rev2,
+                    rev1_config,
                     mimalloc=mimalloc,
                     reference_interpreter=interpreter,
                     binaryen=binaryen,
@@ -736,14 +786,11 @@ class CompareRevs:
             "revision2", help="Second Wasmtime revision to use in the comparison"
         )
 
-        namespace.wasmtime1 = argparse.Namespace()
-        add_wasmtime_args_to_subparser(
-            parser, namespace.wasmtime1, suffix="1", desc="wasmtime revision 1"
+        add_revision_specific_args_to_subparser(
+            parser, revision_qualifier="rev1", desc="revision 1"
         )
-
-        namespace.wasmtime2 = argparse.Namespace()
-        add_wasmtime_args_to_subparser(
-            parser, namespace.wasmtime2, suffix="2", desc="wasmtime revision 2"
+        add_revision_specific_args_to_subparser(
+            parser, revision_qualifier="rev2", desc="revision 2"
         )
 
 
@@ -787,21 +834,6 @@ class Setup:
         for repo in wasmtime_repos:
             expected_root_commit, remotes = wasmtime_github_repos
             setup_repo(repo, expected_root_commit, remotes)
-
-
-class ForwardChildNamespaceAction(argparse.Action):
-    def __init__(self, option_strings, dest, namespace, forward_to, *args, **kwargs):
-        super(ForwardChildNamespaceAction, self).__init__(
-            option_strings=option_strings, dest=dest, *args, **kwargs
-        )
-        self.namespace = namespace
-        self.forward = forward_to(
-            option_strings=option_strings, dest=dest, *args, **kwargs
-        )
-
-    def __call__(self, parser, _namespace, values, option_string=None):
-        print(self.namespace)
-        self.forward.__call__(parser, self.namespace, values, option_string)
 
 
 def check_build_tools_present():
