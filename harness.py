@@ -73,7 +73,6 @@ class Benchmark:
     """
 
     name: str
-    file: str
 
     def prepare(
         self,
@@ -122,12 +121,23 @@ class Benchmark:
 
 
 class MakeWasm(Benchmark):
-    "Benchmarks that use the make.generic.config Makefile"
+    """Benchmarks that use the make.generic.config Makefile
 
-    def __init__(self, file, name=None, invoke=None):
-        self.name: str = name or file
-        self.file: str = file
-        self.invoke: Optional[str] = invoke
+    Attributes
+    ----------
+    file : str
+        The file in the suite folder to call the Makefile on, without its
+        extension
+    invoke : Optional[str]
+        If given, name of function in final module to invoke
+    """
+
+    def __init__(
+        self, file: str, name: Optional[str] = None, invoke: Optional[str] = None
+    ):
+        self.file = file
+        self.invoke = invoke
+        super().__init__(name or file)
 
     def prepare(
         self,
@@ -166,12 +176,20 @@ class MakeWasm(Benchmark):
 
 
 class Wat(Benchmark):
-    "Benchmarks that simply run a dedicated function in a wat file"
+    """Benchmarks that simply run a dedicated function in a wat file
+
+    Attributes
+    ----------
+    file : str
+        The file in the suite folder to run, without its extension
+    invoke : Optional[str]
+        If given, name of function in final module to invoke
+    """
 
     def __init__(self, file, name=None, invoke=None):
-        self.name: str = name or file
         self.file: str = file
         self.invoke: Optional[str] = invoke
+        super().__init__(name or file)
 
     def prepare(
         self,
