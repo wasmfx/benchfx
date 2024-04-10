@@ -720,8 +720,22 @@ class SubcommandRun:
     Compares the benchmarks within each suite against each other.
     """
 
-    def __init__(self):
-        pass
+    @staticmethod
+    def addSubparser(subparsers):
+        parser = subparsers.add_parser("run", help="runs benchmarks (used by default)")
+
+        parser.add_argument(
+            "--filter",
+            help="Only run benchmarks that match this glob pattern",
+            action="append",
+        )
+        parser.add_argument(
+            "--allow-dirty",
+            help="Allows the benchfx, binaryen, spec and wasmtime repos to be dirty",
+            action="store_true",
+        )
+
+        addRevisionSpecificArgsToSubparser(parser)
 
     def execute(self, cli_args: argparse.Namespace):
         checkDependenciesPresent(need_second_wasmtime_repo=False)
@@ -786,23 +800,6 @@ class SubcommandRun:
         for _suite_path, benchmark_commands in suite_shell_commands.items():
             Hyperfine.run(benchmark_commands, print_stdout=True)
 
-    @staticmethod
-    def addSubparser(subparsers):
-        parser = subparsers.add_parser("run", help="runs benchmarks (used by default)")
-
-        parser.add_argument(
-            "--filter",
-            help="Only run benchmarks that match this glob pattern",
-            action="append",
-        )
-        parser.add_argument(
-            "--allow-dirty",
-            help="Allows the benchfx, binaryen, spec and wasmtime repos to be dirty",
-            action="store_true",
-        )
-
-        addRevisionSpecificArgsToSubparser(parser)
-
 
 class SubcommandCompareRevs:
     """Implements the 'compare-revs' subcommand.
@@ -811,8 +808,35 @@ class SubcommandCompareRevs:
     wasmtime revision against b executed by second revision.
     """
 
-    def __init__(self):
-        pass
+    @staticmethod
+    def addSubparser(subparsers):
+        parser = subparsers.add_parser(
+            "compare-revs",
+            help="""For each individual benchmark, compares runtime when using
+            first revision of wasmtime against second one""",
+        )
+        parser.add_argument(
+            "--filter",
+            help="Only run benchmarks that match this glob pattern",
+            action="append",
+        )
+        parser.add_argument(
+            "--allow-dirty",
+            help="Allows the benchfx, binaryen, spec and wasmtime repos to be dirty",
+        )
+        parser.add_argument(
+            "revision1", help="First Wasmtime revision to use in the comparison"
+        )
+        parser.add_argument(
+            "revision2", help="Second Wasmtime revision to use in the comparison"
+        )
+
+        addRevisionSpecificArgsToSubparser(
+            parser, revision_qualifier="rev1", desc="revision 1"
+        )
+        addRevisionSpecificArgsToSubparser(
+            parser, revision_qualifier="rev2", desc="revision 2"
+        )
 
     def prepare_wasmtime(self, repo_path: Path, revision: str, configuration: Config):
         wasmtime_repo = GitRepo(repo_path)
@@ -914,48 +938,12 @@ class SubcommandCompareRevs:
                     rev2_mean = results[1]["mean"]
                     print(f"{bench.name}: {rev1_mean / rev2_mean}")
 
-    @staticmethod
-    def addSubparser(subparsers):
-        parser = subparsers.add_parser(
-            "compare-revs",
-            help="""For each individual benchmark, compares runtime when using
-            first revision of wasmtime against second one""",
-        )
-        parser.add_argument(
-            "--filter",
-            help="Only run benchmarks that match this glob pattern",
-            action="append",
-        )
-        parser.add_argument(
-            "--allow-dirty",
-            help="Allows the benchfx, binaryen, spec and wasmtime repos to be dirty",
-        )
-        parser.add_argument(
-            "revision1", help="First Wasmtime revision to use in the comparison"
-        )
-        parser.add_argument(
-            "revision2", help="Second Wasmtime revision to use in the comparison"
-        )
-
-        addRevisionSpecificArgsToSubparser(
-            parser, revision_qualifier="rev1", desc="revision 1"
-        )
-        addRevisionSpecificArgsToSubparser(
-            parser, revision_qualifier="rev2", desc="revision 2"
-        )
-
 
 class SubcommandSetup:
     """Implements the 'setup' subcommand.
 
     Install dependencies if missing.
     """
-
-    def __init__(self):
-        pass
-
-    def make(self):
-        pass
 
     @staticmethod
     def addSubparser(subparsers):
