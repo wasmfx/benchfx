@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import argparse
 import subprocess
 import multiprocessing
@@ -488,6 +490,13 @@ class GitRepo:
         # NB: Need to provide --force twice in order to delete non-empty directories
         self._git("clean -d --force --force")
 
+    def addWorktree(self, newWorktreePath: Path):
+        check(
+            not newWorktreePath.exists(),
+            "Cannot create new git worktree at {newWorktreePath}, path exists",
+        )
+        self._git(f"worktree add --detach '{str(newWorktreePath.absolute())}'")
+
 
 # Builds the reference interpreter and binaryen
 @typechecked
@@ -841,10 +850,18 @@ class Setup:
             help="Sets up the repos for the dependencies used by the harness",
         )
 
+        parser.add_argument(
+            "--wasmtime-create-worktree-from-development-repo",
+            help=f"""Instead of cloning wasmtime from github, create a new git
+            worktree inside {REPOS_PATH} based off an existing wasmtime
+            development repository at path WASMTIME_DEVEL_REPO_PATH""",
+            metavar="WASMTIME_DEVEL_REPO_PATH",
+        )
+
     def execute(self, args):
         repos = [SPEC_REPO, BINARYEN_REPO, MIMALLOC_REPO]
 
-        def setup_repo(repo_name, expected_root_commit, remotes):
+        def checkExistingRepo(repo: str, expected_root_commit) -> bool:
             path = Path(REPOS_PATH) / repo
             if path.exists():
                 r = GitRepo(path)
@@ -852,20 +869,60 @@ class Setup:
                     r.hasRev(expected_root_commit),
                     f"Error while setting up {repo} repo at {path}: It exists, but does not contain commit {expected_root_commit}, which we expected to find there",
                 )
-
+                return True
             else:
-                GitRepo.initWithRemotes(path, remotes)
+                return False
+
+        def init_repo(repo_name, remotes):
+            path = Path(REPOS_PATH) / repo
+            GitRepo.initWithRemotes(path, remotes)
+
+        def makeNewWorkdir(
+            repo_description: str,
+            new_worktree_repo: str,
+            source_devel_repo_path: Path,
+            expected_commit: str,
+        ):
+            new_worktree_path = Path(REPOS_PATH) / new_worktree_repo
+
+            check(
+                source_devel_repo_path.exists(),
+                f"Supposed to create a worktree for {repo_description} development repository at {source_devel_repo_path}, but that path does not exist",
+            )
+            check(
+                not new_worktree_path.exists(),
+                f"Supposed to create new git worktree at {new_worktree_path}, but that path already exists",
+            )
+
+            devel_repo = GitRepo(source_devel_repo_path)
+            check(
+                devel_repo.hasRev(expected_commit),
+                f"Expected {repo_description} development repo at {source_devel_repo_path} to contain commit {expected_commit}, which it doesn't",
+            )
+
+            devel_repo.addWorktree(new_worktree_path)
+
+        run_check(f"mkdir -p '{REPOS_PATH}'")
 
         for repo in repos:
             expected_root_commit, remotes = config.GITHUB_REPOS[repo]
-            setup_repo(repo, expected_root_commit, remotes)
+            if not checkExistingRepo(repo, expected_root_commit):
+                init_repo(repo, remotes)
 
-        # # We have multiple wasmtime repos
+        # We have multiple wasmtime repos
         wasmtime_repos = [WASMTIME_REPO1, WASMTIME_REPO2]
-        wasmtime_github_repos = config.GITHUB_REPOS["wasmtime"]
+        wasmtime_root_commit, wasmtime_github_remotes = config.GITHUB_REPOS["wasmtime"]
+
         for repo in wasmtime_repos:
-            expected_root_commit, remotes = wasmtime_github_repos
-            setup_repo(repo, expected_root_commit, remotes)
+            if checkExistingRepo(repo, wasmtime_root_commit):
+                continue
+            if args.wasmtime_create_worktree_from_development_repo:
+                devel_repo_path = Path(
+                    args.wasmtime_create_worktree_from_development_repo
+                )
+                makeNewWorkdir("wasmtime", repo, devel_repo_path, wasmtime_root_commit)
+            else:
+                init_repo(repo, wasmtime_github_remotes)
 
 
 def checkBuildToolsPresent():
