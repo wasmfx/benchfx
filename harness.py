@@ -388,11 +388,22 @@ class Wasmtime:
 @typechecked
 class Hyperfine:
     @staticmethod
-    def run(shell_commands: List[str], warmup_count=3, json_export_path=None):
+    def run(
+        shell_commands: List[str],
+        print_stdout=False,
+        warmup_count=3,
+        json_export_path=None,
+    ):
         args = ["hyperfine", f"--warmup={warmup_count}"]
         if json_export_path:
             args += [f"--export-json={json_export_path}"]
-        run_check(args + shell_commands)
+        result = run_check(args + shell_commands)
+
+        if print_stdout:
+            global logLevel
+            # Don't print if we are already printing all process output anyway
+            if logLevel <= 1:
+                print(result.stdout)
 
 
 # Helper class for working at a git repo (or a working tree of a git repo) at a given path.
@@ -624,7 +635,7 @@ class Run:
 
         # Perform actual benchmarking in each suite:
         for _suite_path, benchmark_commands in suite_shell_commands.items():
-            Hyperfine.run(benchmark_commands)
+            Hyperfine.run(benchmark_commands, print_stdout=True)
 
     @staticmethod
     def addSubparser(subparsers, namespace):
