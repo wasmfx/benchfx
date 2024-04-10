@@ -101,9 +101,9 @@ class MakeWasm(Benchmark):
             cwd=suite_path,
         )
 
-        wasmtime.compile_cwasm(config, suite_path / wasm_file, output_dir / cwasm_file)
+        wasmtime.compileWasm(config, suite_path / wasm_file, output_dir / cwasm_file)
 
-        run_command = wasmtime.run_cwasm_shell_command(config, output_dir / cwasm_file)
+        run_command = wasmtime.shellCommandCwasmRun(config, output_dir / cwasm_file)
         return mimalloc.add_to_shell_commmand(run_command)
 
 
@@ -128,9 +128,9 @@ class Wat(Benchmark):
         wat_path = suite_path / (self.file + ".wat")
         cwasm_path = output_dir / (self.file + ".cwasm")
 
-        wasmtime.compile_cwasm(config, wat_path, cwasm_path)
+        wasmtime.compileWasm(config, wat_path, cwasm_path)
 
-        run_command = wasmtime.run_cwasm_shell_command(
+        run_command = wasmtime.shellCommandCwasmRun(
             config, cwasm_path, invoke_function=self.invoke
         )
 
@@ -241,7 +241,7 @@ class Config:
     wasmtime_run_args: Optional[List[str]] = None
 
     @staticmethod
-    def from_cli_namespace_object(namespace, revision_qualifier=None) -> "Config":
+    def fromCliNamespaceObject(namespace, revision_qualifier=None) -> "Config":
         prefix = revision_qualifier + "_" if revision_qualifier else ""
 
         def parseYN(attr_name: str, attr_value: str) -> bool:
@@ -278,21 +278,21 @@ class Config:
 
         return config
 
-    def _get_or_default(self, prop, default):
+    def _getOrDefault(self, prop, default):
         return prop if prop is not None else default
 
-    def get_wasmtime_cargo_build_args_or_default(self) -> List[str]:
-        return self._get_or_default(
+    def getWasmtimeCargoBuildArgsOrDefault(self) -> List[str]:
+        return self._getOrDefault(
             self.wasmtime_cargo_build_args, config.WASMTIME_CARGO_BUILD_ARGS
         )
 
-    def get_wasmtime_compile_args_or_default(self) -> List[str]:
-        return self._get_or_default(
+    def getWasmtimeCompileArgsOrDefault(self) -> List[str]:
+        return self._getOrDefault(
             self.wasmtime_compile_args, config.WASMTIME_COMPILE_ARGS
         )
 
-    def get_wasmtime_run_args_or_default(self) -> List[str]:
-        return self._get_or_default(self.wasmtime_run_args, config.WASMTIME_RUN_ARGS)
+    def getWasmtimeRunArgsOrDefault(self) -> List[str]:
+        return self._getOrDefault(self.wasmtime_run_args, config.WASMTIME_RUN_ARGS)
 
 
 class Wasmtime:
@@ -316,7 +316,7 @@ class Wasmtime:
                 "Overriding cargo builds args with "
                 + str(configuration.wasmtime_cargo_build_args)
             )
-        cargo_build_args = configuration.get_wasmtime_cargo_build_args_or_default()
+        cargo_build_args = configuration.getWasmtimeCargoBuildArgsOrDefault()
 
         run_check(
             ["cargo", "build"] + release + cargo_build_args,
@@ -324,7 +324,7 @@ class Wasmtime:
             self.path,
         )
 
-    def compile_cwasm(
+    def compileWasm(
         self, configuration: Config, input_wasm_path: Path, output_cwasm_path: Path
     ):
         wasmtime = self.executable_path()
@@ -335,7 +335,7 @@ class Wasmtime:
                 "Overriding wasmtime compile args with "
                 + str(configuration.wasmtime_compile_args)
             )
-        wasmtime_compile_args = configuration.get_wasmtime_compile_args_or_default()
+        wasmtime_compile_args = configuration.getWasmtimeCompileArgsOrDefault()
 
         run_check(
             [wasmtime, "compile"]
@@ -347,7 +347,7 @@ class Wasmtime:
             f"Failed to compile {input_wasm_path} to  {output_cwasm_path}",
         )
 
-    def run_cwasm_shell_command(
+    def shellCommandCwasmRun(
         self,
         configuration: Config,
         cwasm_path: Path,
@@ -361,7 +361,7 @@ class Wasmtime:
                 "Overriding wasmtime run args with "
                 + str(configuration.wasmtime_run_args)
             )
-        wasmtime_run_args = configuration.get_wasmtime_run_args_or_default()
+        wasmtime_run_args = configuration.getWasmtimeRunArgsOrDefault()
 
         invoke_args = []
         if invoke_function:
@@ -397,15 +397,13 @@ class GitRepo:
             f"Expecting git repo at {path}, but the folder does not exist",
         )
         check(
-            GitRepo.is_root_of_repo_or_worktree(path),
+            GitRepo.isRootOfRepoOrWorktree(path),
             f"{path} is not the root of a git repository (or a worktree of a repository)",
         )
         self.path = path
 
     @staticmethod
-    def init_with_remotes(
-        path: Path, github_remotes: List[Tuple[str, str]]
-    ) -> "GitRepo":
+    def initWithRemotes(path: Path, github_remotes: List[Tuple[str, str]]) -> "GitRepo":
         check(
             not path.exists(),
             f"Asked to init a git repo at {path}, but the folder exists",
@@ -418,18 +416,18 @@ class GitRepo:
 
         for user_name, repo_name in github_remotes:
             github_repo_url = f"https://github.com/{user_name}/{repo_name}"
-            repo.git(f"remote add '{user_name}' '{github_repo_url}'")
+            repo._git(f"remote add '{user_name}' '{github_repo_url}'")
 
-        repo.git("fetch --all")
+        repo._git("fetch --all")
         return repo
 
-    def has_rev(self, rev: str) -> bool:
+    def hasRev(self, rev: str) -> bool:
         rev = rev + "^{commit}"
         res = run(f"git rev-parse --verify '{rev}'", cwd=self.path)
         return res.returncode == 0
 
     @staticmethod
-    def is_root_of_repo_or_worktree(path):
+    def isRootOfRepoOrWorktree(path):
         res = run("git rev-parse --show-toplevel", cwd=path)
         if res.returncode != 0:
             return False
@@ -437,34 +435,34 @@ class GitRepo:
         return Path(toplevel_path).absolute() == Path(path).absolute()
 
     # This uses run_check, use only for git commands that are not allowed to fail
-    def git(self, args):
+    def _git(self, args):
         return run_check("git " + args, cwd=self.path)
 
-    def is_dirty(self, allow_untracked=True):
+    def isDirty(self, allow_untracked=True):
         untracked_mode = "no" if allow_untracked else "normal"
-        res = self.git(f"status --untracked-files={untracked_mode} --porcelain")
+        res = self._git(f"status --untracked-files={untracked_mode} --porcelain")
         # the --porcelain option makes the output stable, where no output means clean repository
         return res.stdout.strip() != ""
 
     def checkout(self, revision):
         check(
-            not self.is_dirty(allow_untracked=False),
+            not self.isDirty(allow_untracked=False),
             f"Cannot checkout git repo at {self.path} to {revision} because it is dirty",
         )
-        self.git(f"switch --detach {revision}")
-        self.git("submodule update --init --recursive")
+        self._git(f"switch --detach {revision}")
+        self._git("submodule update --init --recursive")
 
         # We are very strict about changed and untracked files, to avoid
         # subsequent failures: We required above that the repo is clean, not
         # even having untracked files. After checking out, we then remove all
         # newly untracked files, too.
         # NB: Need to provide --force twice in order to delete non-empty directories
-        self.git("clean -d --force --force")
+        self._git("clean -d --force --force")
 
 
 # Builds the reference interpreter and binaryen
 @typechecked
-def build_common_tools() -> Tuple[Mimalloc, ReferenceInterpreter, Binaryen]:
+def buildCommonTools() -> Tuple[Mimalloc, ReferenceInterpreter, Binaryen]:
     repos_path = Path(REPOS_PATH)
 
     # Mimalloc setup
@@ -478,7 +476,7 @@ def build_common_tools() -> Tuple[Mimalloc, ReferenceInterpreter, Binaryen]:
     spec_repo_path = repos_path / SPEC_REPO
     log(f"spec repo expected at {spec_repo_path}")
     spec_repo = GitRepo(spec_repo_path)
-    log(f"spec repo dirty? {spec_repo.is_dirty()}")
+    log(f"spec repo dirty? {spec_repo.isDirty()}")
     spec_repo.checkout(config.SPEC_COMMIT)
     interpreter_path = Path(os.path.join(spec_repo_path, "interpreter"))
     interpreter: ReferenceInterpreter = ReferenceInterpreter(interpreter_path)
@@ -488,7 +486,7 @@ def build_common_tools() -> Tuple[Mimalloc, ReferenceInterpreter, Binaryen]:
     binaryen_repo_path = repos_path / BINARYEN_REPO
     log(f"binaryen repo expected at {binaryen_repo_path}")
     binaryen_repo = GitRepo(binaryen_repo_path)
-    log(f"binaryen repo dirty? {binaryen_repo.is_dirty()}")
+    log(f"binaryen repo dirty? {binaryen_repo.isDirty()}")
     binaryen_repo.checkout(config.BINARYEN_COMMIT)
     binaryen = Binaryen(binaryen_repo_path)
     binaryen.build()
@@ -497,7 +495,7 @@ def build_common_tools() -> Tuple[Mimalloc, ReferenceInterpreter, Binaryen]:
 
 
 @typechecked
-def add_revision_specific_args_to_subparser(
+def addRevisionSpecificArgsToSubparser(
     subparser,
     revision_qualifier: Optional[str] = None,
     desc: Optional[str] = None,
@@ -559,15 +557,15 @@ class Run:
     def execute(self, args):
         print("run is running")
 
-        (mimalloc, interpreter, binaryen) = build_common_tools()
+        (mimalloc, interpreter, binaryen) = buildCommonTools()
 
-        configuration = Config.from_cli_namespace_object(args)
+        configuration = Config.fromCliNamespaceObject(args)
 
         # Wasmtime setup
         wasmtime_repo_path = Path(REPOS_PATH) / WASMTIME_REPO1
         log(f"wasmtime repo expected at {wasmtime_repo_path}")
         wasmtime_repo = GitRepo(wasmtime_repo_path)
-        log(f"wasmtime repo dirty? {wasmtime_repo.is_dirty()}")
+        log(f"wasmtime repo dirty? {wasmtime_repo.isDirty()}")
         wasmtime_repo.checkout(config.WASMTIME_COMMIT)
         wasmtime = Wasmtime(wasmtime_repo_path)
 
@@ -636,7 +634,7 @@ class Run:
         )
 
         namespace.wasmtime = argparse.Namespace()
-        add_revision_specific_args_to_subparser(parser)
+        addRevisionSpecificArgsToSubparser(parser)
 
 
 @typechecked
@@ -644,25 +642,9 @@ class CompareRevs:
     def __init__(self):
         pass
 
-    def make(self):
-        pass
-
-    @staticmethod
-    def run_macro_make(args, reference_interpreter, wasm_merge, wasm_opt, cwd):
-        run_check(
-            ["make"]
-            + args
-            + [
-                f"WASM_INTERP={reference_interpreter}",
-                f"WASM_MERGE={wasm_merge}",
-                f"WASM_OPT={wasm_opt}",
-            ],
-            cwd=cwd,
-        )
-
     def prepare_wasmtime(self, repo_path: Path, revision: str, configuration: Config):
         wasmtime_repo = GitRepo(repo_path)
-        log(f"wasmtime repo dirty? {wasmtime_repo.is_dirty()}")
+        log(f"wasmtime repo dirty? {wasmtime_repo.isDirty()}")
         wasmtime_repo.checkout(revision)
         wasmtime = Wasmtime(repo_path)
         wasmtime.build(configuration)
@@ -671,10 +653,10 @@ class CompareRevs:
     def execute(self, args):
         print("compare-revs is running")
 
-        (mimalloc, interpreter, binaryen) = build_common_tools()
+        (mimalloc, interpreter, binaryen) = buildCommonTools()
 
-        rev1_config = Config.from_cli_namespace_object(args, revision_qualifier="rev1")
-        rev2_config = Config.from_cli_namespace_object(args, revision_qualifier="rev2")
+        rev1_config = Config.fromCliNamespaceObject(args, revision_qualifier="rev1")
+        rev2_config = Config.fromCliNamespaceObject(args, revision_qualifier="rev2")
 
         # Wasmtime1 setup
         wasmtime1_repo_path = Path(REPOS_PATH) / WASMTIME_REPO1
@@ -782,10 +764,10 @@ class CompareRevs:
             "revision2", help="Second Wasmtime revision to use in the comparison"
         )
 
-        add_revision_specific_args_to_subparser(
+        addRevisionSpecificArgsToSubparser(
             parser, revision_qualifier="rev1", desc="revision 1"
         )
-        add_revision_specific_args_to_subparser(
+        addRevisionSpecificArgsToSubparser(
             parser, revision_qualifier="rev2", desc="revision 2"
         )
 
@@ -813,14 +795,14 @@ class Setup:
             if path.exists():
                 r = GitRepo(path)
                 check(
-                    r.has_rev(expected_root_commit),
+                    r.hasRev(expected_root_commit),
                     f"""Error while setting up {repo} repo at {path}: It exists,
                     but does not contain commit {expected_root_commit}, which we
                     expected to find there""",
                 )
 
             else:
-                GitRepo.init_with_remotes(path, remotes)
+                GitRepo.initWithRemotes(path, remotes)
 
         for repo in repos:
             expected_root_commit, remotes = config.GITHUB_REPOS[repo]
@@ -834,7 +816,7 @@ class Setup:
             setup_repo(repo, expected_root_commit, remotes)
 
 
-def check_build_tools_present():
+def checkBuildToolsPresent():
     tools = ["make", "cmake", "dune"]
     for tool in tools:
         run_check(
@@ -844,7 +826,7 @@ def check_build_tools_present():
 
 
 def main():
-    check_build_tools_present()
+    checkBuildToolsPresent()
 
     parser = argparse.ArgumentParser(prog="bench")
     namespace = argparse.Namespace()
