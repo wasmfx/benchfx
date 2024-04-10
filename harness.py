@@ -1,23 +1,19 @@
 #!/usr/bin/env python3
 
 import argparse
-import subprocess
-import multiprocessing
-import math
 import config
 import json
+import multiprocessing
+import os
 import shlex
+import subprocess
 import traceback
 
 from typing import List, Tuple, Optional
 from pathlib import Path
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
-# High-level file operations
-import shutil
-
-import os
 
 from typeguard import typechecked
 
@@ -63,13 +59,37 @@ SHOW_OUTPUT = True
 
 @typechecked
 @dataclass
+class Suite:
+    """A suite is a collection of logically related benchmarks.
+
+    It is uniquely identified by the path to a subfolder within the benchfx
+    directory.
+
+    Each suite's benchmarks will be compared against each other when using the
+    'run' subcommand of the benchnmark harness.
+    """
+
+    path: str
+    benchmarks: List["Benchmark"]
+
+
+@typechecked
+@dataclass
 class Benchmark:
+    """Definition of a benchmark.
+
+    Each benchmark within a `Suite` must have a unique `name`.
+
+    The subclasses of `Benchmark` represent how a benchmark is actually built
+    and run, by overriding the `prepare` method.
+    """
+
     name: str
     file: str
 
     def prepare(
         self,
-        suite: "Suite",
+        suite: Suite,
         output_dir: Path,
         config: "Config",
         mimalloc: "Mimalloc",
@@ -78,21 +98,45 @@ class Benchmark:
         binaryen: "Binaryen",
         wasmtime: "Wasmtime",
     ) -> str:
+        """Perform all necessary preparation work, then return a shell command for actually running the benchmark.
+
+        Some benchmarks may require some preparation work before actually being
+        executed, such as running a Makefile or performing any other kind of
+        compilation work specific to that particular benchmark.
+        All tools (binaryen, wasmtime, etc) are already compiled at this point
+        and may be used.
+
+        For each such "kind" of benchmark, we have a separate subclass of
+        `Benchmark`, whose main differentiation is their implementation of this
+        method.
+
+        Each call to `prepare` receives a fresh, empty `output_dir`, where built
+        artifacts (compiled wasm or cwasm files, etc) may be stored.
+        The function then returns a single shell command. This shell command
+        denotes how to run the benchmark, and will be fed into hyperfine
+        verbatim.
+        """
+
         raise HarnessError("Override me!")
-        return "/bin/false"
 
     def pseudoPath(self, enclosing_suite) -> Path:
+        """Returns a "pseudo-path" for this benchmark for filtering purposes.
+
+        It is obtained by using the benchmark's name as a file name, appearing
+        in the suite's directory,
+        """
+
         return Path(enclosing_suite.path) / self.name
 
-    def matchesAnyFilter(
-        self, enclosing_suite: "Suite", filter_globs: List[str]
-    ) -> bool:
+    def matchesAnyFilter(self, enclosing_suite: Suite, filter_globs: List[str]) -> bool:
         pseudo_path = self.pseudoPath(enclosing_suite)
         return any(map(pseudo_path.match, filter_globs))
 
 
 @typechecked
 class MakeWasm(Benchmark):
+    "Benchmarks that use the make.generic.config Makefile"
+
     def __init__(self, file, name=None, invoke=None):
         self.name: str = name or file
         self.file: str = file
@@ -136,6 +180,8 @@ class MakeWasm(Benchmark):
 
 @typechecked
 class Wat(Benchmark):
+    "Benchmarks that simply run a dedicated function in a wat file"
+
     def __init__(self, file, name=None, invoke=None):
         self.name: str = name or file
         self.file: str = file
@@ -163,13 +209,6 @@ class Wat(Benchmark):
         )
 
         return mimalloc.add_to_shell_commmand(run_command)
-
-
-@typechecked
-@dataclass
-class Suite:
-    path: str
-    benchmarks: List[Benchmark]
 
 
 @typechecked
@@ -219,7 +258,6 @@ class Binaryen:
 
 @typechecked
 class Mimalloc:
-
     def __init__(self, path: Path):
         self.path = path
 
@@ -557,10 +595,12 @@ class GitRepo:
         self._git(f"worktree add --detach '{str(newWorktreePath.absolute())}'")
 
 
-# Builds the reference interpreter and binaryen
 @typechecked
-def buildCommonTools() -> Tuple[WasiSdk, Mimalloc, ReferenceInterpreter, Binaryen]:
-    # We should have already checked that the WASI SDK binaries have been downloaded
+def prepareCommonTools() -> Tuple[WasiSdk, Mimalloc, ReferenceInterpreter, Binaryen]:
+    "Prepares almost all the external tools EXCEPT wasmtime, which we compile elsewhere."
+
+    # We should have already checked that the WASI SDK binaries have been
+    # downloaded
     check(
         WasiSdk.isVersionInstalled(config.WASI_SDK_VERSION, WASI_SDK_BASE_PATH),
         "Wasi SDK missing",
@@ -602,7 +642,14 @@ def addRevisionSpecificArgsToSubparser(
     revision_qualifier: Optional[str] = None,
     desc: Optional[str] = None,
 ):
-    # wasmtime = "wasmtime" + ("" if suffix == None else suffix)
+    """Adds a set of arguments to the CLI parser that exist once for the 'run' subcommand but twice for 'compare-revs'.
+
+    In the former case, `revision_qualifier` and `desc` should be None.
+    Otherwise, `revision_qualifier` is something like `rev1` and the final name
+    of each CLI argument will be prefixed with it. `desc` is then something like
+    "revision 1` and gets spliced into the help string of each argument.
+    """
+
     desc = f" for {desc}" if desc else ""
     rev_prefix = revision_qualifier + "-" if revision_qualifier else ""
     subparser.add_argument(
@@ -681,7 +728,12 @@ def checkDependenciesPresent(need_second_wasmtime_repo):
 
 # The run command, which just runs the benchmarks
 @typechecked
-class Run:
+class SubcommandRun:
+    """Implements the 'run' subcommand.
+
+    Compares the benchmarks within each suite against each other.
+    """
+
     def __init__(self):
         pass
 
@@ -704,7 +756,7 @@ class Run:
     def execute(self, args):
         checkDependenciesPresent(need_second_wasmtime_repo=False)
 
-        (wasi_sdk, mimalloc, interpreter, binaryen) = buildCommonTools()
+        (wasi_sdk, mimalloc, interpreter, binaryen) = prepareCommonTools()
 
         configuration = Config.fromCliNamespaceObject(args)
 
@@ -784,7 +836,13 @@ class Run:
 
 
 @typechecked
-class CompareRevs:
+class SubcommandCompareRevs:
+    """Implements the 'compare-revs' subcommand.
+
+    For each suite s and each benchmark b in s, benchmarks b at first revision
+    against second revision.
+    """
+
     def __init__(self):
         pass
 
@@ -799,7 +857,7 @@ class CompareRevs:
     def execute(self, args):
         checkDependenciesPresent(need_second_wasmtime_repo=True)
 
-        (wasi_sdk, mimalloc, interpreter, binaryen) = buildCommonTools()
+        (wasi_sdk, mimalloc, interpreter, binaryen) = prepareCommonTools()
 
         rev1_config = Config.fromCliNamespaceObject(args, revision_qualifier="rev1")
         rev2_config = Config.fromCliNamespaceObject(args, revision_qualifier="rev2")
@@ -892,7 +950,8 @@ class CompareRevs:
     def addSubparser(subparsers, namespace):
         parser = subparsers.add_parser(
             "compare-revs",
-            help="Run benchmarks using two wasmtime revisions and compare results",
+            help="""For each individual benchmark, compares runtime when using
+            first revision of wasmtime against second one""",
         )
         parser.add_argument(
             "--filter",
@@ -919,7 +978,12 @@ class CompareRevs:
 
 
 @typechecked
-class Setup:
+class SubcommandSetup:
+    """Implements the 'setup' subcommand.
+
+    Install dependencies if missing.
+    """
+
     def __init__(self):
         pass
 
@@ -930,7 +994,12 @@ class Setup:
     def addSubparser(subparsers, namespace):
         parser = subparsers.add_parser(
             "setup",
-            help="Sets up the repos for the dependencies used by the harness",
+            help="""Sets up the repos for the dependencies used by the harness
+            and downloads tools that we don't built from source.
+
+            The command is idempotent; it does nothing for depdencies that are
+            already present.
+            """,
         )
 
         parser.add_argument(
@@ -1026,14 +1095,15 @@ def main():
         help="Can be given twice to enable full debug logging",
     )
 
-    subcommands = {"run": Run, "compare-revs": CompareRevs, "setup": Setup}
+    subcommands = {
+        "run": SubcommandRun,
+        "compare-revs": SubcommandCompareRevs,
+        "setup": SubcommandSetup,
+    }
 
     subparsers = parser.add_subparsers(
         title="Available subcommands", dest="command", required=True
     )
-
-    # This is supposed to make the  default command "run", but doesn't quite work
-    # parser.set_defaults(command = "run")
 
     for name, class_ in subcommands.items():
         class_.addSubparser(subparsers, namespace)
