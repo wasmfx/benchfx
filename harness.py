@@ -551,6 +551,37 @@ def addRevisionSpecificArgsToSubparser(
     )
 
 
+def checkToolReposPresent(need_second_wasmtime_repo):
+    def checkRepo(repo_name, expected_root_commit):
+        path = Path(REPOS_PATH) / repo
+        check(
+            path.exists(),
+            f"Expecting {repo_name} repository at {str(path)}, but the folder does not exist",
+        )
+        r = GitRepo(path)
+        check(
+            r.hasRev(expected_root_commit),
+            f"""Repo {repo}  at {path} exists,
+            but does not contain commit {expected_root_commit}, which we
+            expected to find there""",
+        )
+
+    repos = [SPEC_REPO, BINARYEN_REPO, MIMALLOC_REPO]
+
+    for repo in repos:
+        expected_root_commit, remotes = config.GITHUB_REPOS[repo]
+        checkRepo(repo, expected_root_commit)
+
+    wasmtime_repos = (
+        [WASMTIME_REPO1, WASMTIME_REPO2]
+        if need_second_wasmtime_repo
+        else [WASMTIME_REPO1]
+    )
+    wasmtime_root_commit = config.GITHUB_REPOS["wasmtime"][0]
+    for repo in wasmtime_repos:
+        checkRepo(repo, wasmtime_root_commit)
+
+
 # The run command, which just runs the benchmarks
 @typechecked
 class Run:
@@ -575,6 +606,8 @@ class Run:
 
     def execute(self, args):
         print("run is running")
+
+        checkToolReposPresent(need_second_wasmtime_repo=False)
 
         (mimalloc, interpreter, binaryen) = buildCommonTools()
 
@@ -671,6 +704,8 @@ class CompareRevs:
 
     def execute(self, args):
         print("compare-revs is running")
+
+        checkToolReposPresent(need_second_wasmtime_repo=True)
 
         (mimalloc, interpreter, binaryen) = buildCommonTools()
 
