@@ -40,8 +40,17 @@ def check(condition, msg):
         raise HarnessError(msg)
 
 
-def log(msg, sep=None):
-    print(msg, sep=sep)
+logLevel = 0
+
+
+def debugMsg(msg, sep=None):
+    if logLevel > 1:
+        print(msg, sep=sep)
+
+
+def logMsg(msg, sep=None):
+    if logLevel > 0:
+        print(msg, sep=sep)
 
 
 SHOW_OUTPUT = True
@@ -151,11 +160,10 @@ def run(cmd: str | List[str], cwd=None) -> subprocess.CompletedProcess:
     else:
         command = cmd
     cwd_msg = f" in directory {cwd}" if cwd is not None else ""
-    log(f"Running command{cwd_msg}:\n{command}")
+    logMsg(f"Running command{cwd_msg}:\n{command}")
     res = subprocess.run(command, cwd=cwd, capture_output=True, shell=True, text=True)
-    if SHOW_OUTPUT:
-        log(res.stdout, sep="")
-        log(res.stderr, sep="")
+    debugMsg("STDOUT:\n" + res.stdout, sep="")
+    debugMsg("STDERR:\n" + res.stderr, sep="")
     return res
 
 
@@ -312,7 +320,7 @@ class Wasmtime:
         release = ["--release"] if self.release_build else []
 
         if configuration.wasmtime_cargo_build_args is not None:
-            log(
+            logMsg(
                 "Overriding cargo builds args with "
                 + str(configuration.wasmtime_cargo_build_args)
             )
@@ -331,7 +339,7 @@ class Wasmtime:
         command = "compile"
 
         if configuration.wasmtime_compile_args is not None:
-            log(
+            logMsg(
                 "Overriding wasmtime compile args with "
                 + str(configuration.wasmtime_compile_args)
             )
@@ -357,7 +365,7 @@ class Wasmtime:
         command = "run"
 
         if configuration.wasmtime_run_args is not None:
-            log(
+            logMsg(
                 "Overriding wasmtime run args with "
                 + str(configuration.wasmtime_run_args)
             )
@@ -474,9 +482,9 @@ def buildCommonTools() -> Tuple[Mimalloc, ReferenceInterpreter, Binaryen]:
 
     # Reference interpreter setup
     spec_repo_path = repos_path / SPEC_REPO
-    log(f"spec repo expected at {spec_repo_path}")
+    logMsg(f"spec repo expected at {spec_repo_path}")
     spec_repo = GitRepo(spec_repo_path)
-    log(f"spec repo dirty? {spec_repo.isDirty()}")
+    logMsg(f"spec repo dirty? {spec_repo.isDirty()}")
     spec_repo.checkout(config.SPEC_COMMIT)
     interpreter_path = Path(os.path.join(spec_repo_path, "interpreter"))
     interpreter: ReferenceInterpreter = ReferenceInterpreter(interpreter_path)
@@ -484,9 +492,9 @@ def buildCommonTools() -> Tuple[Mimalloc, ReferenceInterpreter, Binaryen]:
 
     # Binaryen setup
     binaryen_repo_path = repos_path / BINARYEN_REPO
-    log(f"binaryen repo expected at {binaryen_repo_path}")
+    logMsg(f"binaryen repo expected at {binaryen_repo_path}")
     binaryen_repo = GitRepo(binaryen_repo_path)
-    log(f"binaryen repo dirty? {binaryen_repo.isDirty()}")
+    logMsg(f"binaryen repo dirty? {binaryen_repo.isDirty()}")
     binaryen_repo.checkout(config.BINARYEN_COMMIT)
     binaryen = Binaryen(binaryen_repo_path)
     binaryen.build()
@@ -563,9 +571,9 @@ class Run:
 
         # Wasmtime setup
         wasmtime_repo_path = Path(REPOS_PATH) / WASMTIME_REPO1
-        log(f"wasmtime repo expected at {wasmtime_repo_path}")
+        logMsg(f"wasmtime repo expected at {wasmtime_repo_path}")
         wasmtime_repo = GitRepo(wasmtime_repo_path)
-        log(f"wasmtime repo dirty? {wasmtime_repo.isDirty()}")
+        logMsg(f"wasmtime repo dirty? {wasmtime_repo.isDirty()}")
         wasmtime_repo.checkout(config.WASMTIME_COMMIT)
         wasmtime = Wasmtime(wasmtime_repo_path)
 
@@ -589,7 +597,7 @@ class Run:
                 if benchmark_filters and not any(
                     map(benchmark_pseudopath.match, benchmark_filters)
                 ):
-                    log(
+                    logMsg(
                         f"Skipping benchmark {benchmark_pseudopath} as it does not match filter"
                     )
                     continue
@@ -644,7 +652,7 @@ class CompareRevs:
 
     def prepare_wasmtime(self, repo_path: Path, revision: str, configuration: Config):
         wasmtime_repo = GitRepo(repo_path)
-        log(f"wasmtime repo dirty? {wasmtime_repo.isDirty()}")
+        logMsg(f"wasmtime repo dirty? {wasmtime_repo.isDirty()}")
         wasmtime_repo.checkout(revision)
         wasmtime = Wasmtime(repo_path)
         wasmtime.build(configuration)
@@ -688,7 +696,7 @@ class CompareRevs:
                 if benchmark_filters and not any(
                     map(benchmark_pseudopath.match, benchmark_filters)
                 ):
-                    log(
+                    logMsg(
                         f"Skipping benchmark {benchmark_pseudopath} as it does not match filter"
                     )
                     continue
@@ -831,6 +839,14 @@ def main():
     parser = argparse.ArgumentParser(prog="bench")
     namespace = argparse.Namespace()
 
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="count",
+        default=0,
+        help="Can be given twice to enable full debug logging",
+    )
+
     subcommands = {"run": Run, "compare-revs": CompareRevs, "setup": Setup}
 
     subparsers = parser.add_subparsers(
@@ -845,6 +861,9 @@ def main():
 
     args = parser.parse_args(namespace=namespace)
     print(args)
+
+    global logLevel
+    logLevel = args.verbose
 
     Class_ = subcommands[args.command]
     Class_().execute(args)
