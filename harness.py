@@ -509,22 +509,28 @@ def add_revision_specific_args_to_subparser(
     rev_prefix = revision_qualifier + "-" if revision_qualifier else ""
     subparser.add_argument(
         f"--{rev_prefix}wasmtime-cargo-build-args",
-        help=f"Instead of config.WASMTIME_CARGO_BUILD_ARGS, use these arguments building wasmtime{desc}.",
+        help=f"""Instead of config.WASMTIME_CARGO_BUILD_ARGS, use these
+        arguments building wasmtime{desc}.""",
         action="store",
     )
     subparser.add_argument(
         f"--{rev_prefix}wasmtime-run-args",
-        help=f"Instead of config.WASMTIME_RUN_ARGS, use these arguments when executing 'wasmtime run'{desc}. May be unsupported for certain benchmarks.",
+        help=f"""Instead of config.WASMTIME_RUN_ARGS, use these arguments when
+        executing 'wasmtime run'{desc}. May be unsupported for certain
+        benchmarks.""",
         action="store",
     )
     subparser.add_argument(
         f"--{rev_prefix}wasmtime-compile-args",
-        help=f"Instead of config.WASMTIME_RUN_ARGS, use these arguments when executing 'wasmtime compile'{desc}. May be unsupported for certain benchmarks.",
+        help=f"""Instead of config.WASMTIME_RUN_ARGS, use these arguments when
+        executing 'wasmtime compile'{desc}. May be unsupported for certain
+        benchmarks.""",
         action="store",
     )
     subparser.add_argument(
         f"--{rev_prefix}use-mimalloc",
-        help=f"Should we use mimalloc instead of standard system allocator when running benchmarks{desc} (allowed values: y/n, default: y)",
+        help=f"""Should we use mimalloc instead of standard system allocator
+        when running benchmarks{desc} (allowed values: y/n, default: y)""",
         action="store",
         default="y",
     )
@@ -818,7 +824,9 @@ class Setup:
                 r = GitRepo(path)
                 check(
                     r.has_rev(expected_root_commit),
-                    f"Error while setting up {repo} repo at {path}: It exists, but does not contain commit {expected_root_commit}, which we expected to find there",
+                    f"""Error while setting up {repo} repo at {path}: It exists,
+                    but does not contain commit {expected_root_commit}, which we
+                    expected to find there""",
                 )
 
             else:
