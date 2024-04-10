@@ -553,7 +553,7 @@ class GitRepo:
             github_repo_url = f"https://github.com/{user_name}/{repo_name}"
             repo._git(f"remote add '{user_name}' '{github_repo_url}'")
 
-        repo._git("fetch --all")
+        repo.fetchAll()
         return repo
 
     def hasRev(self, rev: str) -> bool:
@@ -584,6 +584,10 @@ class GitRepo:
             not self.isDirty(allow_untracked=False),
             f"Cannot checkout git repo at {self.path} to {revision} because it is dirty",
         )
+        check(
+            self.hasRev(revision),
+            f"Cannot checkout {revision} in {self.path}: That revision is unknown. Consider running 'setup' subcommand with '--fetch-all' flag.",
+        )
         self._git(f"switch --detach {revision}")
         self._git("submodule update --init --recursive")
 
@@ -600,6 +604,9 @@ class GitRepo:
             "Cannot create new git worktree at {newWorktreePath}, path exists",
         )
         self._git(f"worktree add --detach '{str(newWorktreePath.absolute())}'")
+
+    def fetchAll(self):
+        self._git("fetch --all")
 
 
 def prepareCommonTools() -> Tuple[WasiSdk, Mimalloc, ReferenceInterpreter, Binaryen]:
@@ -1000,7 +1007,16 @@ class SubcommandSetup:
             metavar="WASMTIME_DEVEL_REPO_PATH",
         )
 
+        parser.add_argument(
+            "--fetch-all",
+            help=f"Will run 'git fetch --all' in all dependency repos",
+            action="store_true",
+            default=False,
+        )
+
     def execute(self, cli_args: argparse.Namespace):
+        fetch_all = cli_args.fetch_all
+
         def ensureWasiSdkPresent():
             if not WasiSdk.isVersionInstalled(
                 config.WASI_SDK_VERSION, WASI_SDK_BASE_PATH
@@ -1015,12 +1031,15 @@ class SubcommandSetup:
                     r.hasRev(expected_root_commit),
                     f"Error while setting up {repo} repo at {path}: It exists, but does not contain commit {expected_root_commit}, which we expected to find there",
                 )
+                if fetch_all:
+                    r.fetchAll()
                 return True
             else:
                 return False
 
         def init_repo(repo_name, remotes):
             path = REPOS_PATH / repo
+            # initWithRemotes always does fetch-all anyway
             GitRepo.initWithRemotes(path, remotes)
 
         def makeNewWorkdir(
