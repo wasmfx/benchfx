@@ -37,7 +37,7 @@ def check(condition, msg):
 logLevel = 0
 
 
-def debugMsg(msg, sep=None):
+def logProcessOutput(msg, sep=None):
     if logLevel > 1:
         print(msg, sep=sep)
 
@@ -223,8 +223,8 @@ def run(cmd: str | List[str], cwd=None) -> subprocess.CompletedProcess:
     cwd_msg = f" in directory {cwd}" if cwd is not None else ""
     logMsg(f"Running command{cwd_msg}:\n{command}")
     res = subprocess.run(command, cwd=cwd, capture_output=True, shell=True, text=True)
-    debugMsg("STDOUT:\n" + res.stdout, sep="")
-    debugMsg("STDERR:\n" + res.stderr, sep="")
+    logProcessOutput("STDOUT:\n" + res.stdout, sep="")
+    logProcessOutput("STDERR:\n" + res.stderr, sep="")
     return res
 
 
@@ -235,7 +235,7 @@ def runCheck(cmd, msg=None, cwd=None):
     check(
         result.returncode == 0,
         msg
-        + f"\nDetails:\nCommand failed: {cmd}\nStdout: {result.stdout}, Stderr: {result.stderr}",
+        + f"\nDetails:\nFailed command: {cmd}\nStdout:\n{result.stdout}\nStderr:\n{result.stderr}",
     )
     return result
 
@@ -1096,4 +1096,4 @@ if __name__ == "__main__":
         main()
     except HarnessError as e:
         print("Error: " + e.args[0])
-        debugMsg(traceback.format_exc())
+        logProcessOutput(traceback.format_exc())
