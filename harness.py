@@ -31,6 +31,8 @@ MIMALLOC_REPO = "mimalloc"
 WASMTIME_REPO1 = "wasmtime1"
 WASMTIME_REPO2 = "wasmtime2"
 
+WASI_SDK_BASE_PATH = Path("tools/wasi-sdk")
+
 
 @typechecked
 class HarnessError(Exception):
@@ -71,6 +73,7 @@ class Benchmark:
         output_dir: Path,
         config: "Config",
         mimalloc: "Mimalloc",
+        wasi_sdk: "WasiSdk",
         reference_interpreter: "ReferenceInterpreter",
         binaryen: "Binaryen",
         wasmtime: "Wasmtime",
@@ -101,6 +104,7 @@ class MakeWasm(Benchmark):
         output_dir: Path,
         config,
         mimalloc,
+        wasi_sdk,
         reference_interpreter,
         binaryen,
         wasmtime,
@@ -109,12 +113,14 @@ class MakeWasm(Benchmark):
         cwasm_file = self.file + ".cwasm"
         suite_path = Path(suite.path)
         interpreter = Path(reference_interpreter.executable_path()).absolute()
+        wasi_cc = wasi_sdk.clangPath().absolute()
         wasm_merge = Path(binaryen.wasm_merge_executable_path()).absolute()
         wasm_opt = Path(binaryen.wasm_opt_executable_path()).absolute()
         run_check("make clean", cwd=suite_path)
         run_check(
             ["make", wasm_file]
             + [
+                f"WASICC={wasi_cc}",
                 f"WASM_INTERP={interpreter}",
                 f"WASM_MERGE={wasm_merge}",
                 f"WASM_OPT={wasm_opt}",
@@ -141,6 +147,7 @@ class Wat(Benchmark):
         output_dir: Path,
         config,
         mimalloc,
+        wasi_sdk,
         reference_interpreter,
         binaryen,
         wasmtime,
@@ -418,6 +425,58 @@ class Hyperfine:
                 print(result.stdout)
 
 
+@dataclass
+class WasiSdk:
+    path: Path
+    wasi_version: str
+
+    RELEASE_DOWNLOAD_FOLDER_TEMPLATE = "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-{wasi_version}/"
+    RELEASE_ARCHIVE_NAME_TEMPLATE = "wasi-sdk-{wasi_version_full}-linux.tar.gz"
+
+    @staticmethod
+    def forVersion(wasi_version: str, base_folder: Path) -> "WasiSdk":
+        wasi_version_full = WasiSdk._fullVersion(wasi_version)
+        untared_folder = f"wasi-sdk-{wasi_version_full}"
+
+        return WasiSdk(base_folder / untared_folder, wasi_version)
+
+    @staticmethod
+    def _fullVersion(wasi_version: str):
+        return f"{wasi_version}.0"
+
+    @staticmethod
+    def _release_tar_file_name(wasi_version: str) -> str:
+        wasi_version_full = WasiSdk._fullVersion(wasi_version)
+        return WasiSdk.RELEASE_ARCHIVE_NAME_TEMPLATE.format(
+            wasi_version=wasi_version, wasi_version_full=wasi_version_full
+        )
+
+    @staticmethod
+    def download(wasi_version, base_folder: Path):
+        wasi_version_full = WasiSdk._fullVersion(wasi_version)
+        base_url = folder_url = WasiSdk.RELEASE_DOWNLOAD_FOLDER_TEMPLATE.format(
+            wasi_version=wasi_version, wasi_version_full=wasi_version_full
+        )
+        file_name = WasiSdk._release_tar_file_name(wasi_version)
+
+        full_url = folder_url + file_name
+
+        run_check(f"mkdir -p '{base_folder}'")
+        run_check(
+            f"wget '{full_url}'",
+            cwd=base_folder,
+            msg="Failed to download WASI SDK from {full_url}",
+        )
+        run_check(f"tar xvf '{file_name}'", cwd=base_folder)
+
+    def clangPath(self) -> Path:
+        return self.path / "bin" / "clang"
+
+    @staticmethod
+    def isVersionInstalled(wasi_version: str, base_folder: Path) -> bool:
+        return WasiSdk.forVersion(wasi_version, base_folder).clangPath().exists()
+
+
 # Helper class for working at a git repo (or a working tree of a git repo) at a given path.
 # This is mostly a wrapper around GitPyhton's git.Repo type
 @typechecked
@@ -500,7 +559,14 @@ class GitRepo:
 
 # Builds the reference interpreter and binaryen
 @typechecked
-def buildCommonTools() -> Tuple[Mimalloc, ReferenceInterpreter, Binaryen]:
+def buildCommonTools() -> Tuple[WasiSdk, Mimalloc, ReferenceInterpreter, Binaryen]:
+    # We should have already checked that the WASI SDK binaries have been downloaded
+    check(
+        WasiSdk.isVersionInstalled(config.WASI_SDK_VERSION, WASI_SDK_BASE_PATH),
+        "Wasi SDK missing",
+    )
+    wasi_sdk = WasiSdk.forVersion(config.WASI_SDK_VERSION, WASI_SDK_BASE_PATH)
+
     repos_path = Path(REPOS_PATH)
 
     # Mimalloc setup
@@ -529,7 +595,7 @@ def buildCommonTools() -> Tuple[Mimalloc, ReferenceInterpreter, Binaryen]:
     binaryen = Binaryen(binaryen_repo_path)
     binaryen.build()
 
-    return (mimalloc, interpreter, binaryen)
+    return (wasi_sdk, mimalloc, interpreter, binaryen)
 
 
 @typechecked
@@ -570,33 +636,49 @@ def addRevisionSpecificArgsToSubparser(
     )
 
 
-def checkToolReposPresent(need_second_wasmtime_repo):
-    def checkRepo(repo_name, expected_root_commit):
-        path = Path(REPOS_PATH) / repo
-        check(
-            path.exists(),
-            f"Expecting {repo_name} repository at {str(path)}, but the folder does not exist. Consider running 'setup' subcommand.",
+def checkDependenciesPresent(need_second_wasmtime_repo):
+    def checkExternalToolsPresent():
+        tools = ["make", "cmake", "dune", "hyperfine"]
+        for tool in tools:
+            run_check(
+                f"command -v {tool}",
+                f"Could not find '{tool}' executable in $PATH, which this the benchmark harness requires",
+            )
+
+    def checkToolReposPresent(need_second_wasmtime_repo):
+        def checkRepo(repo_name, expected_root_commit):
+            path = Path(REPOS_PATH) / repo
+            check(
+                path.exists(),
+                f"Expecting {repo_name} repository at {str(path)}, but the folder does not exist. Consider running 'setup' subcommand.",
+            )
+            r = GitRepo(path)
+            check(
+                r.hasRev(expected_root_commit),
+                f"Repo {repo}  at {path} exists, but does not contain commit {expected_root_commit}, which we expected to find there. Consider running 'setup' subcommand.",
+            )
+
+        repos = [SPEC_REPO, BINARYEN_REPO, MIMALLOC_REPO]
+
+        for repo in repos:
+            expected_root_commit, remotes = config.GITHUB_REPOS[repo]
+            checkRepo(repo, expected_root_commit)
+
+        wasmtime_repos = (
+            [WASMTIME_REPO1, WASMTIME_REPO2]
+            if need_second_wasmtime_repo
+            else [WASMTIME_REPO1]
         )
-        r = GitRepo(path)
-        check(
-            r.hasRev(expected_root_commit),
-            f"Repo {repo}  at {path} exists, but does not contain commit {expected_root_commit}, which we expected to find there. Consider running 'setup' subcommand.",
-        )
+        wasmtime_root_commit = config.GITHUB_REPOS["wasmtime"][0]
+        for repo in wasmtime_repos:
+            checkRepo(repo, wasmtime_root_commit)
 
-    repos = [SPEC_REPO, BINARYEN_REPO, MIMALLOC_REPO]
-
-    for repo in repos:
-        expected_root_commit, remotes = config.GITHUB_REPOS[repo]
-        checkRepo(repo, expected_root_commit)
-
-    wasmtime_repos = (
-        [WASMTIME_REPO1, WASMTIME_REPO2]
-        if need_second_wasmtime_repo
-        else [WASMTIME_REPO1]
+    check(
+        WasiSdk.isVersionInstalled(config.WASI_SDK_VERSION, WASI_SDK_BASE_PATH),
+        f"WASI SDK version {config.WASI_SDK_VERSION} not installed. Consider running 'setup' subcommand.",
     )
-    wasmtime_root_commit = config.GITHUB_REPOS["wasmtime"][0]
-    for repo in wasmtime_repos:
-        checkRepo(repo, wasmtime_root_commit)
+    checkExternalToolsPresent()
+    checkToolReposPresent(need_second_wasmtime_repo)
 
 
 # The run command, which just runs the benchmarks
@@ -622,9 +704,9 @@ class Run:
         )
 
     def execute(self, args):
-        checkToolReposPresent(need_second_wasmtime_repo=False)
+        checkDependenciesPresent(need_second_wasmtime_repo=False)
 
-        (mimalloc, interpreter, binaryen) = buildCommonTools()
+        (wasi_sdk, mimalloc, interpreter, binaryen) = buildCommonTools()
 
         configuration = Config.fromCliNamespaceObject(args)
 
@@ -669,6 +751,7 @@ class Run:
                         benchmark_output_dir,
                         configuration,
                         mimalloc=mimalloc,
+                        wasi_sdk=wasi_sdk,
                         reference_interpreter=interpreter,
                         binaryen=binaryen,
                         wasmtime=wasmtime,
@@ -716,9 +799,9 @@ class CompareRevs:
         return wasmtime
 
     def execute(self, args):
-        checkToolReposPresent(need_second_wasmtime_repo=True)
+        checkDependenciesPresent(need_second_wasmtime_repo=True)
 
-        (mimalloc, interpreter, binaryen) = buildCommonTools()
+        (wasi_sdk, mimalloc, interpreter, binaryen) = buildCommonTools()
 
         rev1_config = Config.fromCliNamespaceObject(args, revision_qualifier="rev1")
         rev2_config = Config.fromCliNamespaceObject(args, revision_qualifier="rev2")
@@ -767,6 +850,7 @@ class CompareRevs:
                     benchmark_output_dir_rev1,
                     rev1_config,
                     mimalloc=mimalloc,
+                    wasi_sdk=wasi_sdk,
                     reference_interpreter=interpreter,
                     binaryen=binaryen,
                     wasmtime=wasmtime1,
@@ -776,6 +860,7 @@ class CompareRevs:
                     benchmark_output_dir_rev2,
                     rev1_config,
                     mimalloc=mimalloc,
+                    wasi_sdk=wasi_sdk,
                     reference_interpreter=interpreter,
                     binaryen=binaryen,
                     wasmtime=wasmtime2,
@@ -859,7 +944,11 @@ class Setup:
         )
 
     def execute(self, args):
-        repos = [SPEC_REPO, BINARYEN_REPO, MIMALLOC_REPO]
+        def ensureWasiSdkPresent():
+            if not WasiSdk.isVersionInstalled(
+                config.WASI_SDK_VERSION, WASI_SDK_BASE_PATH
+            ):
+                WasiSdk.download(config.WASI_SDK_VERSION, WASI_SDK_BASE_PATH)
 
         def checkExistingRepo(repo: str, expected_root_commit) -> bool:
             path = Path(REPOS_PATH) / repo
@@ -902,6 +991,8 @@ class Setup:
 
             devel_repo.addWorktree(new_worktree_path)
 
+        ensureWasiSdkPresent()
+        repos = [SPEC_REPO, BINARYEN_REPO, MIMALLOC_REPO]
         run_check(f"mkdir -p '{REPOS_PATH}'")
 
         for repo in repos:
@@ -923,15 +1014,6 @@ class Setup:
                 makeNewWorkdir("wasmtime", repo, devel_repo_path, wasmtime_root_commit)
             else:
                 init_repo(repo, wasmtime_github_remotes)
-
-
-def checkBuildToolsPresent():
-    tools = ["make", "cmake", "dune", "hyperfine"]
-    for tool in tools:
-        run_check(
-            f"command -v {tool}",
-            f"Could not find '{tool}' executable in $PATH, which this the benchmark harness requires",
-        )
 
 
 def main():

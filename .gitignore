@@ -75,5 +75,8 @@ docker.nix
 # Ignore tool repos
 tools/repos/
 
+# Ignore where we download WASI SKDS
+tools/wasi-sdk/
+
 # Ignore toplevel output folder
 out/

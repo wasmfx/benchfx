@@ -53,3 +53,5 @@ GITHUB_REPOS = {
         [("wasmfx", "wasmfxtime"), ("bytecodealliance", "wasmtime")],
     ),
 }
+
+WASI_SDK_VERSION="20"
