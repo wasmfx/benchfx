@@ -926,7 +926,7 @@ class Setup:
 
 
 def checkBuildToolsPresent():
-    tools = ["make", "cmake", "dune"]
+    tools = ["make", "cmake", "dune", "hyperfine"]
     for tool in tools:
         run_check(
             f"command -v {tool}",
