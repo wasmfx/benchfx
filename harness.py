@@ -90,6 +90,7 @@ class MakeWasm(Benchmark):
         interpreter = Path(reference_interpreter.executable_path()).absolute()
         wasm_merge = Path(binaryen.wasm_merge_executable_path()).absolute()
         wasm_opt = Path(binaryen.wasm_opt_executable_path()).absolute()
+        run_check("make clean", cwd=suite_path)
         run_check(
             ["make", wasm_file]
             + [
@@ -141,9 +142,6 @@ class Wat(Benchmark):
 class Suite:
     path: str
     benchmarks: List[Benchmark]
-
-    def hasMakeBenchmark(self):
-        return any(map(lambda b: isinstance(b, MakeWasm), self.benchmarks))
 
 
 @typechecked
@@ -585,10 +583,6 @@ class Run:
                 f"Found benchmark suite with non-existing path {suite_path}",
             )
 
-            if suite.hasMakeBenchmark():
-                # The make files may not be fully aware that various tools changed
-                run_check("make clean", cwd=suite_path)
-
             benchmark_commands = []
             for b in suite.benchmarks:
                 benchmark_pseudopath = suite_path / b.name
@@ -703,10 +697,6 @@ class CompareRevs:
                 suite_path.exists(),
                 f"Found benchmark suite with non-existing path {suite_path}",
             )
-
-            if suite.hasMakeBenchmark():
-                # The make files may not be fully aware that various tools changed
-                run_check("make clean", cwd=suite_path)
 
             benchmark_pairs: List[Tuple[Benchmark, List[str], Path]] = []
             for b in suite.benchmarks:
