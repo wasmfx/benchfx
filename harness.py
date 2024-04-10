@@ -279,6 +279,16 @@ class ReferenceInterpreter:
 
 @dataclass
 class Config:
+    """Configuration of various tools for each benchmark run.
+
+    This serves two purposes:
+    1. A more structured representation of the most important CLI config
+    options, showing how they should be parsed and getting their defaults.
+
+    2. For those options that exist twice for 'compare-revs' command, implements
+    extracting one `Config` object for each of the two revisions.
+    """
+
     use_mimalloc: bool = True
 
     # Wasmtime specific:
@@ -287,7 +297,7 @@ class Config:
     wasmtime_run_args: Optional[List[str]] = None
 
     @staticmethod
-    def fromCliNamespaceObject(namespace, revision_qualifier=None) -> "Config":
+    def fromCliArgs(cli_args: argparse.Namespace, revision_qualifier=None) -> "Config":
         prefix = revision_qualifier + "_" if revision_qualifier else ""
 
         def parseYN(attr_name: str, attr_value: str) -> bool:
@@ -318,7 +328,7 @@ class Config:
 
         for prop_name, parser in prop_parsers:
             qualified_attr_name = prefix + prop_name
-            attr_val = getattr(namespace, qualified_attr_name, None)
+            attr_val = getattr(cli_args, qualified_attr_name, None)
             val = parser(qualified_attr_name, attr_val) if attr_val else None
             setattr(config, prop_name, val)
 
@@ -713,28 +723,12 @@ class SubcommandRun:
     def __init__(self):
         pass
 
-    def make(self):
-        pass
-
-    @staticmethod
-    def run_macro_make(args, reference_interpreter, wasm_merge, wasm_opt, cwd):
-        run_check(
-            ["make"]
-            + args
-            + [
-                f"WASM_INTERP={reference_interpreter}",
-                f"WASM_MERGE={wasm_merge}",
-                f"WASM_OPT={wasm_opt}",
-            ],
-            cwd=cwd,
-        )
-
-    def execute(self, args):
+    def execute(self, cli_args: argparse.Namespace):
         checkDependenciesPresent(need_second_wasmtime_repo=False)
 
         (wasi_sdk, mimalloc, interpreter, binaryen) = prepareCommonTools()
 
-        configuration = Config.fromCliNamespaceObject(args)
+        configuration = Config.fromCliArgs(cli_args)
 
         # Wasmtime setup
         wasmtime_repo_path = REPOS_PATH / WASMTIME_REPO1
@@ -758,7 +752,7 @@ class SubcommandRun:
 
             benchmark_commands = []
             for b in suite.benchmarks:
-                benchmark_filters = args.filter
+                benchmark_filters = cli_args.filter
                 if benchmark_filters and not b.matchesAnyFilter(
                     suite, benchmark_filters
                 ):
@@ -793,7 +787,7 @@ class SubcommandRun:
             Hyperfine.run(benchmark_commands, print_stdout=True)
 
     @staticmethod
-    def addSubparser(subparsers, namespace):
+    def addSubparser(subparsers):
         parser = subparsers.add_parser("run", help="runs benchmarks (used by default)")
 
         parser.add_argument(
@@ -807,7 +801,6 @@ class SubcommandRun:
             action="store_true",
         )
 
-        namespace.wasmtime = argparse.Namespace()
         addRevisionSpecificArgsToSubparser(parser)
 
 
@@ -829,24 +822,24 @@ class SubcommandCompareRevs:
         wasmtime.build(configuration)
         return wasmtime
 
-    def execute(self, args):
+    def execute(self, cli_args: argparse.Namespace):
         checkDependenciesPresent(need_second_wasmtime_repo=True)
 
         (wasi_sdk, mimalloc, interpreter, binaryen) = prepareCommonTools()
 
-        rev1_config = Config.fromCliNamespaceObject(args, revision_qualifier="rev1")
-        rev2_config = Config.fromCliNamespaceObject(args, revision_qualifier="rev2")
+        rev1_config = Config.fromCliArgs(cli_args, revision_qualifier="rev1")
+        rev2_config = Config.fromCliArgs(cli_args, revision_qualifier="rev2")
 
         # Wasmtime1 setup
         wasmtime1_repo_path = REPOS_PATH / WASMTIME_REPO1
         wasmtime1 = self.prepare_wasmtime(
-            wasmtime1_repo_path, args.revision1, rev1_config
+            wasmtime1_repo_path, cli_args.revision1, rev1_config
         )
 
         # Wasmtime2 setup
         wasmtime2_repo_path = REPOS_PATH / WASMTIME_REPO2
         wasmtime2 = self.prepare_wasmtime(
-            wasmtime2_repo_path, args.revision2, rev2_config
+            wasmtime2_repo_path, cli_args.revision2, rev2_config
         )
 
         suite_files = {}
@@ -861,7 +854,7 @@ class SubcommandCompareRevs:
 
             benchmark_pairs: List[Tuple[Benchmark, List[str], Path]] = []
             for b in suite.benchmarks:
-                benchmark_filters = args.filter
+                benchmark_filters = cli_args.filter
                 if benchmark_filters and not b.matchesAnyFilter(
                     suite, benchmark_filters
                 ):
@@ -922,7 +915,7 @@ class SubcommandCompareRevs:
                     print(f"{bench.name}: {rev1_mean / rev2_mean}")
 
     @staticmethod
-    def addSubparser(subparsers, namespace):
+    def addSubparser(subparsers):
         parser = subparsers.add_parser(
             "compare-revs",
             help="""For each individual benchmark, compares runtime when using
@@ -965,7 +958,7 @@ class SubcommandSetup:
         pass
 
     @staticmethod
-    def addSubparser(subparsers, namespace):
+    def addSubparser(subparsers):
         parser = subparsers.add_parser(
             "setup",
             help="""Sets up the repos for the dependencies used by the harness
@@ -984,7 +977,7 @@ class SubcommandSetup:
             metavar="WASMTIME_DEVEL_REPO_PATH",
         )
 
-    def execute(self, args):
+    def execute(self, cli_args: argparse.Namespace):
         def ensureWasiSdkPresent():
             if not WasiSdk.isVersionInstalled(
                 config.WASI_SDK_VERSION, WASI_SDK_BASE_PATH
@@ -1048,9 +1041,9 @@ class SubcommandSetup:
         for repo in wasmtime_repos:
             if checkExistingRepo(repo, wasmtime_root_commit):
                 continue
-            if args.wasmtime_create_worktree_from_development_repo:
+            if cli_args.wasmtime_create_worktree_from_development_repo:
                 devel_repo_path = Path(
-                    args.wasmtime_create_worktree_from_development_repo
+                    cli_args.wasmtime_create_worktree_from_development_repo
                 )
                 makeNewWorkdir("wasmtime", repo, devel_repo_path, wasmtime_root_commit)
             else:
@@ -1059,7 +1052,6 @@ class SubcommandSetup:
 
 def main():
     parser = argparse.ArgumentParser(prog="bench")
-    namespace = argparse.Namespace()
 
     parser.add_argument(
         "--verbose",
@@ -1080,17 +1072,17 @@ def main():
     )
 
     for name, class_ in subcommands.items():
-        class_.addSubparser(subparsers, namespace)
+        class_.addSubparser(subparsers)
 
-    args = parser.parse_args(namespace=namespace)
+    cli_args = parser.parse_args()
 
     global logLevel
-    logLevel = args.verbose
+    logLevel = cli_args.verbose
 
-    logMsg(f"CLI args object: {args}")
+    logMsg(f"CLI args object: {cli_args}")
 
-    Class_ = subcommands[args.command]
-    Class_().execute(args)
+    Class_ = subcommands[cli_args.command]
+    Class_().execute(cli_args)
 
 
 if __name__ == "__main__":
