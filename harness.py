@@ -24,7 +24,7 @@ from typeguard import typechecked
 ExitCode = int
 
 
-REPOS_PATH = "tools/repos"
+REPOS_PATH = Path("tools/repos")
 SPEC_REPO = "spec"
 BINARYEN_REPO = "binaryen"
 MIMALLOC_REPO = "mimalloc"
@@ -567,17 +567,15 @@ def buildCommonTools() -> Tuple[WasiSdk, Mimalloc, ReferenceInterpreter, Binarye
     )
     wasi_sdk = WasiSdk.forVersion(config.WASI_SDK_VERSION, WASI_SDK_BASE_PATH)
 
-    repos_path = Path(REPOS_PATH)
-
     # Mimalloc setup
-    mimalloc_repo_path = repos_path / MIMALLOC_REPO
+    mimalloc_repo_path = REPOS_PATH / MIMALLOC_REPO
     mimalloc_repo = GitRepo(mimalloc_repo_path)
     mimalloc_repo.checkout(config.MIMALLOC_COMMIT)
     mimalloc = Mimalloc(mimalloc_repo_path)
     mimalloc.build()
 
     # Reference interpreter setup
-    spec_repo_path = repos_path / SPEC_REPO
+    spec_repo_path = REPOS_PATH / SPEC_REPO
     logMsg(f"spec repo expected at {spec_repo_path}")
     spec_repo = GitRepo(spec_repo_path)
     logMsg(f"spec repo dirty? {spec_repo.isDirty()}")
@@ -587,7 +585,7 @@ def buildCommonTools() -> Tuple[WasiSdk, Mimalloc, ReferenceInterpreter, Binarye
     interpreter.build()
 
     # Binaryen setup
-    binaryen_repo_path = repos_path / BINARYEN_REPO
+    binaryen_repo_path = REPOS_PATH / BINARYEN_REPO
     logMsg(f"binaryen repo expected at {binaryen_repo_path}")
     binaryen_repo = GitRepo(binaryen_repo_path)
     logMsg(f"binaryen repo dirty? {binaryen_repo.isDirty()}")
@@ -647,7 +645,7 @@ def checkDependenciesPresent(need_second_wasmtime_repo):
 
     def checkToolReposPresent(need_second_wasmtime_repo):
         def checkRepo(repo_name, expected_root_commit):
-            path = Path(REPOS_PATH) / repo
+            path = REPOS_PATH / repo
             check(
                 path.exists(),
                 f"Expecting {repo_name} repository at {str(path)}, but the folder does not exist. Consider running 'setup' subcommand.",
@@ -711,7 +709,7 @@ class Run:
         configuration = Config.fromCliNamespaceObject(args)
 
         # Wasmtime setup
-        wasmtime_repo_path = Path(REPOS_PATH) / WASMTIME_REPO1
+        wasmtime_repo_path = REPOS_PATH / WASMTIME_REPO1
         logMsg(f"wasmtime repo expected at {wasmtime_repo_path}")
         wasmtime_repo = GitRepo(wasmtime_repo_path)
         logMsg(f"wasmtime repo dirty? {wasmtime_repo.isDirty()}")
@@ -807,13 +805,13 @@ class CompareRevs:
         rev2_config = Config.fromCliNamespaceObject(args, revision_qualifier="rev2")
 
         # Wasmtime1 setup
-        wasmtime1_repo_path = Path(REPOS_PATH) / WASMTIME_REPO1
+        wasmtime1_repo_path = REPOS_PATH / WASMTIME_REPO1
         wasmtime1 = self.prepare_wasmtime(
             wasmtime1_repo_path, args.revision1, rev1_config
         )
 
         # Wasmtime2 setup
-        wasmtime2_repo_path = Path(REPOS_PATH) / WASMTIME_REPO2
+        wasmtime2_repo_path = REPOS_PATH / WASMTIME_REPO2
         wasmtime2 = self.prepare_wasmtime(
             wasmtime2_repo_path, args.revision2, rev2_config
         )
@@ -951,7 +949,7 @@ class Setup:
                 WasiSdk.download(config.WASI_SDK_VERSION, WASI_SDK_BASE_PATH)
 
         def checkExistingRepo(repo: str, expected_root_commit) -> bool:
-            path = Path(REPOS_PATH) / repo
+            path = REPOS_PATH / repo
             if path.exists():
                 r = GitRepo(path)
                 check(
@@ -963,7 +961,7 @@ class Setup:
                 return False
 
         def init_repo(repo_name, remotes):
-            path = Path(REPOS_PATH) / repo
+            path = REPOS_PATH / repo
             GitRepo.initWithRemotes(path, remotes)
 
         def makeNewWorkdir(
@@ -972,7 +970,7 @@ class Setup:
             source_devel_repo_path: Path,
             expected_commit: str,
         ):
-            new_worktree_path = Path(REPOS_PATH) / new_worktree_repo
+            new_worktree_path = REPOS_PATH / new_worktree_repo
 
             check(
                 source_devel_repo_path.exists(),
