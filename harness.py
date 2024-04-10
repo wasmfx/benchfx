@@ -153,12 +153,12 @@ class MakeWasm(Benchmark):
         wasm_file = self.file + ".wasm"
         cwasm_file = self.file + ".cwasm"
         suite_path = Path(suite.path)
-        interpreter = Path(reference_interpreter.executable_path()).absolute()
+        interpreter = Path(reference_interpreter.executablePath()).absolute()
         wasi_cc = wasi_sdk.clangPath().absolute()
-        wasm_merge = Path(binaryen.wasm_merge_executable_path()).absolute()
-        wasm_opt = Path(binaryen.wasm_opt_executable_path()).absolute()
-        run_check("make clean", cwd=suite_path)
-        run_check(
+        wasm_merge = Path(binaryen.wasmMergeExecutablePath()).absolute()
+        wasm_opt = Path(binaryen.wasmOptExecutablePath()).absolute()
+        runCheck("make clean", cwd=suite_path)
+        runCheck(
             ["make", wasm_file]
             + [
                 f"WASICC={wasi_cc}",
@@ -172,7 +172,7 @@ class MakeWasm(Benchmark):
         wasmtime.compileWasm(config, suite_path / wasm_file, output_dir / cwasm_file)
 
         run_command = wasmtime.shellCommandCwasmRun(config, output_dir / cwasm_file)
-        return mimalloc.add_to_shell_commmand(run_command)
+        return mimalloc.addToShellCommmand(run_command)
 
 
 class Wat(Benchmark):
@@ -212,7 +212,7 @@ class Wat(Benchmark):
             config, cwasm_path, invoke_function=self.invoke
         )
 
-        return mimalloc.add_to_shell_commmand(run_command)
+        return mimalloc.addToShellCommmand(run_command)
 
 
 def run(cmd: str | List[str], cwd=None) -> subprocess.CompletedProcess:
@@ -229,7 +229,7 @@ def run(cmd: str | List[str], cwd=None) -> subprocess.CompletedProcess:
 
 
 # Like run, but checks that the command finished with non-zero exit code.
-def run_check(cmd, msg=None, cwd=None):
+def runCheck(cmd, msg=None, cwd=None):
     result = run(cmd, cwd)
     msg = msg or f"Running {cmd} in {cwd or os.getcwd()} failed"
     check(
@@ -247,13 +247,13 @@ class Binaryen:
 
     def build(self):
         cpus = multiprocessing.cpu_count()
-        run_check("cmake .", msg="cmake for binaryen failed", cwd=self.path)
-        run_check(f"make -j {cpus}", msg="building binaryen failed", cwd=self.path)
+        runCheck("cmake .", msg="cmake for binaryen failed", cwd=self.path)
+        runCheck(f"make -j {cpus}", msg="building binaryen failed", cwd=self.path)
 
-    def wasm_merge_executable_path(self) -> str:
+    def wasmMergeExecutablePath(self) -> str:
         return str(os.path.join(self.path, "bin", "wasm-merge"))
 
-    def wasm_opt_executable_path(self) -> str:
+    def wasmOptExecutablePath(self) -> str:
         return str(os.path.join(self.path, "bin", "wasm-opt"))
 
 
@@ -263,18 +263,18 @@ class Mimalloc:
 
     def build(self):
         cpus = multiprocessing.cpu_count()
-        run_check("mkdir -p out", cwd=self.path)
+        runCheck("mkdir -p out", cwd=self.path)
         out_dir = self.path / "out"
-        run_check("cmake ..", msg="cmake for mimalloc failed", cwd=out_dir)
-        run_check(f"make -j {cpus}", msg="building mimalloc failed", cwd=out_dir)
+        runCheck("cmake ..", msg="cmake for mimalloc failed", cwd=out_dir)
+        runCheck(f"make -j {cpus}", msg="building mimalloc failed", cwd=out_dir)
 
-    def libmimalloc_path(self) -> Path:
+    def libmimallocPath(self) -> Path:
         return self.path / "out" / "libmimalloc.so"
 
-    def add_to_shell_commmand(self, shell_command: str):
+    def addToShellCommmand(self, shell_command: str):
         "Given a shell command, extends it with an appropriate LD_PRELOAD clause to use mimalloc"
 
-        escaped_path = shlex.quote(str(self.libmimalloc_path()))
+        escaped_path = shlex.quote(str(self.libmimallocPath()))
         return f"LD_PRELOAD={escaped_path} {shell_command}"
 
 
@@ -282,17 +282,17 @@ class ReferenceInterpreter:
     def __init__(self, path: Path):
         self.path = path
 
-    def executable_path(self) -> Path:
+    def executablePath(self) -> Path:
         return self.path / "wasm"
 
     def build(self):
-        run_check("make", "Failed to build reference interpreter", self.path)
+        runCheck("make", "Failed to build reference interpreter", self.path)
 
     def compile(self, input_path: Path, output_path: Path):
-        wasm = str(self.executable_path().absolute())
+        wasm = str(self.executablePath().absolute())
         input_absolute = str(input_path.absolute())
         output_absolute = str(output_path.absolute())
-        run_check(f"{wasm} -d '{input_absolute}' -o '{output_absolute}'", self.path)
+        runCheck(f"{wasm} -d '{input_absolute}' -o '{output_absolute}'", self.path)
 
 
 @dataclass
@@ -392,7 +392,7 @@ class Wasmtime:
             )
         cargo_build_args = configuration.getWasmtimeCargoBuildArgsOrDefault()
 
-        run_check(
+        runCheck(
             ["cargo", "build"] + release + cargo_build_args,
             "Failed to build wasmtime",
             self.path,
@@ -411,7 +411,7 @@ class Wasmtime:
             )
         wasmtime_compile_args = configuration.getWasmtimeCompileArgsOrDefault()
 
-        run_check(
+        runCheck(
             [wasmtime, "compile"]
             + wasmtime_compile_args
             + [
@@ -462,7 +462,7 @@ class Hyperfine:
         args = ["hyperfine", f"--warmup={warmup_count}"]
         if json_export_path:
             args += [f"--export-json={json_export_path}"]
-        result = run_check(args + shell_commands)
+        result = runCheck(args + shell_commands)
 
         if print_stdout:
             global logLevel
@@ -507,13 +507,13 @@ class WasiSdk:
 
         full_url = folder_url + file_name
 
-        run_check(f"mkdir -p '{base_folder}'")
-        run_check(
+        runCheck(f"mkdir -p '{base_folder}'")
+        runCheck(
             f"wget '{full_url}'",
             cwd=base_folder,
             msg="Failed to download WASI SDK from {full_url}",
         )
-        run_check(f"tar xvf '{file_name}'", cwd=base_folder)
+        runCheck(f"tar xvf '{file_name}'", cwd=base_folder)
 
     def clangPath(self) -> Path:
         return self.path / "bin" / "clang"
@@ -544,8 +544,8 @@ class GitRepo:
             f"Asked to init a git repo at {path}, but the folder exists",
         )
 
-        run_check(f"mkdir -p '{path}'")
-        run_check(f"git init '{path}'")
+        runCheck(f"mkdir -p '{path}'")
+        runCheck(f"git init '{path}'")
 
         repo = GitRepo(path)
 
@@ -571,7 +571,7 @@ class GitRepo:
 
     # This uses run_check, use only for git commands that are not allowed to fail
     def _git(self, args):
-        return run_check("git " + args, cwd=self.path)
+        return runCheck("git " + args, cwd=self.path)
 
     def isDirty(self, allow_untracked=True):
         untracked_mode = "no" if allow_untracked else "normal"
@@ -690,7 +690,7 @@ def checkDependenciesPresent(need_second_wasmtime_repo):
     def checkExternalToolsPresent():
         tools = ["make", "cmake", "dune", "hyperfine"]
         for tool in tools:
-            run_check(
+            runCheck(
                 f"command -v {tool}",
                 f"Could not find '{tool}' executable in $PATH, which this the benchmark harness requires",
             )
@@ -1033,7 +1033,7 @@ class SubcommandSetup:
 
         ensureWasiSdkPresent()
         repos = [SPEC_REPO, BINARYEN_REPO, MIMALLOC_REPO]
-        run_check(f"mkdir -p '{REPOS_PATH}'")
+        runCheck(f"mkdir -p '{REPOS_PATH}'")
 
         for repo in repos:
             expected_root_commit, remotes = config.GITHUB_REPOS[repo]
