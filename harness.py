@@ -9,22 +9,19 @@ import shlex
 import subprocess
 import traceback
 
-from typing import List, Tuple, Optional
-from pathlib import Path
 from dataclasses import dataclass
 from pathlib import Path
+from typing import List, Tuple, Optional
 
-ExitCode = int
 
-
+WASI_SDK_BASE_PATH = Path("tools/wasi-sdk")
 REPOS_PATH = Path("tools/repos")
+
 SPEC_REPO = "spec"
 BINARYEN_REPO = "binaryen"
 MIMALLOC_REPO = "mimalloc"
 WASMTIME_REPO1 = "wasmtime1"
 WASMTIME_REPO2 = "wasmtime2"
-
-WASI_SDK_BASE_PATH = Path("tools/wasi-sdk")
 
 
 class HarnessError(Exception):
@@ -48,9 +45,6 @@ def debugMsg(msg, sep=None):
 def logMsg(msg, sep=None):
     if logLevel > 0:
         print(msg, sep=sep)
-
-
-SHOW_OUTPUT = True
 
 
 @dataclass
@@ -820,8 +814,8 @@ class SubcommandRun:
 class SubcommandCompareRevs:
     """Implements the 'compare-revs' subcommand.
 
-    For each suite s and each benchmark b in s, benchmarks b at first revision
-    against second revision.
+    For each suite s and each benchmark b in s, benchmarks b executed by first
+    wasmtime revision against b executed by second revision.
     """
 
     def __init__(self):
