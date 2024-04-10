@@ -7,6 +7,7 @@ import multiprocessing
 import os
 import shlex
 import subprocess
+import sys
 import traceback
 
 from dataclasses import dataclass
@@ -526,7 +527,7 @@ class WasiSdk:
 # Helper class for working at a git repo (or a working tree of a git repo) at a given path.
 # This is mostly a wrapper around GitPyhton's git.Repo type
 class GitRepo:
-    def __init__(self, path):
+    def __init__(self, path: Path):
         check(
             path.exists(),
             f"Expecting git repo at {path}, but the folder does not exist",
@@ -686,6 +687,14 @@ def addRevisionSpecificArgsToSubparser(
     )
 
 
+def checkBenchFxRepoClean():
+    benchfx_repo = GitRepo(Path(__file__).parent)
+    check(
+        not benchfx_repo.isDirty(),
+        "Cannot run benchmarks while benchfx repo is dirty. Consider passing --allow-dirty flag.",
+    )
+
+
 def checkDependenciesPresent(need_second_wasmtime_repo):
     def checkExternalToolsPresent():
         tools = ["make", "cmake", "dune", "hyperfine"]
@@ -749,13 +758,17 @@ class SubcommandRun:
         )
         parser.add_argument(
             "--allow-dirty",
-            help="Allows the benchfx, binaryen, spec and wasmtime repos to be dirty",
+            help="Allows the benchfx repo to be dirty when running benchmarks",
             action="store_true",
+            default=False,
         )
 
         addRevisionSpecificArgsToSubparser(parser)
 
     def execute(self, cli_args: argparse.Namespace):
+        if not cli_args.allow_dirty:
+            checkBenchFxRepoClean()
+
         checkDependenciesPresent(need_second_wasmtime_repo=False)
 
         (wasi_sdk, mimalloc, interpreter, binaryen) = prepareCommonTools()
@@ -840,7 +853,9 @@ class SubcommandCompareRevs:
         )
         parser.add_argument(
             "--allow-dirty",
-            help="Allows the benchfx, binaryen, spec and wasmtime repos to be dirty",
+            help="Allows the benchfx repo to be dirty when running benchmarks",
+            action="store_true",
+            default=False,
         )
         parser.add_argument(
             "revision1", help="First Wasmtime revision to use in the comparison"
@@ -865,6 +880,9 @@ class SubcommandCompareRevs:
         return wasmtime
 
     def execute(self, cli_args: argparse.Namespace):
+        if not cli_args.allow_dirty:
+            checkBenchFxRepoClean()
+
         checkDependenciesPresent(need_second_wasmtime_repo=True)
 
         (wasi_sdk, mimalloc, interpreter, binaryen) = prepareCommonTools()
@@ -1086,6 +1104,12 @@ def main():
     logLevel = cli_args.verbose
 
     logMsg(f"CLI args object: {cli_args}")
+
+    script_path = Path(__file__)
+    check(
+        script_path.parent == Path.cwd(),
+        "This script should be executed from the root of the benchfx directory",
+    )
 
     Class_ = subcommands[cli_args.command]
     Class_().execute(cli_args)
