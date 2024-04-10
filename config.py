@@ -28,7 +28,10 @@ WASMTIME_COMMIT = "4df0bc599f31f4c1c9099b1439b9751e56db0617"
 SPEC_COMMIT="4f8d8c7359e6b157236f9245b2a423be9a117782"
 
 WASMTIME_CARGO_BUILD_ARGS = ["--features=default,unsafe_disable_continuation_linearity_check"]
-WASMTIME_RUN_ARGS = ["-W=exceptions,function-references,typed-continuations", "-Ccache=n" ]
+WASMTIME_RUN_ARGS = ["-W=exceptions,function-references,typed-continuations",
+                     "-Ccache=n",
+                     "-Wwasmfx-stack-size=4096",
+                     "-Wwasmfx-red-zone-size=0" ]
 WASMTIME_COMPILE_ARGS = [ "-W=exceptions,function-references,typed-continuations", "-Ccache=n"]
 
 
