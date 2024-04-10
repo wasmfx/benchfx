@@ -71,3 +71,9 @@ c/
 x64-effects/
 Dockerfile
 docker.nix
+
+# Ignore tool repos
+tools/repos/
+
+# Ignore toplevel output folder
+out/
