@@ -14,9 +14,6 @@ from pathlib import Path
 from dataclasses import dataclass
 from pathlib import Path
 
-
-from typeguard import typechecked
-
 ExitCode = int
 
 
@@ -30,7 +27,6 @@ WASMTIME_REPO2 = "wasmtime2"
 WASI_SDK_BASE_PATH = Path("tools/wasi-sdk")
 
 
-@typechecked
 class HarnessError(Exception):
     def __init__(self, msg):
         super().__init__(msg)
@@ -57,7 +53,6 @@ def logMsg(msg, sep=None):
 SHOW_OUTPUT = True
 
 
-@typechecked
 @dataclass
 class Suite:
     """A suite is a collection of logically related benchmarks.
@@ -73,7 +68,6 @@ class Suite:
     benchmarks: List["Benchmark"]
 
 
-@typechecked
 @dataclass
 class Benchmark:
     """Definition of a benchmark.
@@ -133,7 +127,6 @@ class Benchmark:
         return any(map(pseudo_path.match, filter_globs))
 
 
-@typechecked
 class MakeWasm(Benchmark):
     "Benchmarks that use the make.generic.config Makefile"
 
@@ -178,7 +171,6 @@ class MakeWasm(Benchmark):
         return mimalloc.add_to_shell_commmand(run_command)
 
 
-@typechecked
 class Wat(Benchmark):
     "Benchmarks that simply run a dedicated function in a wat file"
 
@@ -211,7 +203,6 @@ class Wat(Benchmark):
         return mimalloc.add_to_shell_commmand(run_command)
 
 
-@typechecked
 def run(cmd: str | List[str], cwd=None) -> subprocess.CompletedProcess:
     if isinstance(cmd, list):
         command = shlex.join(cmd)
@@ -226,7 +217,6 @@ def run(cmd: str | List[str], cwd=None) -> subprocess.CompletedProcess:
 
 
 # Like run, but checks that the command finished with non-zero exit code.
-@typechecked
 def run_check(cmd, msg=None, cwd=None):
     result = run(cmd, cwd)
     msg = msg or f"Running {cmd} in {cwd or os.getcwd()} failed"
@@ -238,7 +228,6 @@ def run_check(cmd, msg=None, cwd=None):
     return result
 
 
-@typechecked
 class Binaryen:
 
     def __init__(self, path: Path):
@@ -256,7 +245,6 @@ class Binaryen:
         return str(os.path.join(self.path, "bin", "wasm-opt"))
 
 
-@typechecked
 class Mimalloc:
     def __init__(self, path: Path):
         self.path = path
@@ -278,7 +266,6 @@ class Mimalloc:
         return f"LD_PRELOAD={escaped_path} {shell_command}"
 
 
-@typechecked
 class ReferenceInterpreter:
     def __init__(self, path: Path):
         self.path = path
@@ -442,7 +429,6 @@ class Wasmtime:
         return shlex.join(cmd)
 
 
-@typechecked
 class Hyperfine:
     @staticmethod
     def run(
@@ -517,7 +503,6 @@ class WasiSdk:
 
 # Helper class for working at a git repo (or a working tree of a git repo) at a given path.
 # This is mostly a wrapper around GitPyhton's git.Repo type
-@typechecked
 class GitRepo:
     def __init__(self, path):
         check(
@@ -595,7 +580,6 @@ class GitRepo:
         self._git(f"worktree add --detach '{str(newWorktreePath.absolute())}'")
 
 
-@typechecked
 def prepareCommonTools() -> Tuple[WasiSdk, Mimalloc, ReferenceInterpreter, Binaryen]:
     "Prepares almost all the external tools EXCEPT wasmtime, which we compile elsewhere."
 
@@ -636,7 +620,6 @@ def prepareCommonTools() -> Tuple[WasiSdk, Mimalloc, ReferenceInterpreter, Binar
     return (wasi_sdk, mimalloc, interpreter, binaryen)
 
 
-@typechecked
 def addRevisionSpecificArgsToSubparser(
     subparser,
     revision_qualifier: Optional[str] = None,
@@ -727,7 +710,6 @@ def checkDependenciesPresent(need_second_wasmtime_repo):
 
 
 # The run command, which just runs the benchmarks
-@typechecked
 class SubcommandRun:
     """Implements the 'run' subcommand.
 
@@ -835,7 +817,6 @@ class SubcommandRun:
         addRevisionSpecificArgsToSubparser(parser)
 
 
-@typechecked
 class SubcommandCompareRevs:
     """Implements the 'compare-revs' subcommand.
 
@@ -977,7 +958,6 @@ class SubcommandCompareRevs:
         )
 
 
-@typechecked
 class SubcommandSetup:
     """Implements the 'setup' subcommand.
 
