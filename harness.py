@@ -894,10 +894,10 @@ class SubcommandCompareRevs:
                 benchmark_pairs.append((b, [command1, command2], json_path))
 
             if benchmark_pairs:
-                suite_files[suite.path] = benchmark_pairs
+                suite_files[suite_path] = benchmark_pairs
 
         # Perform actual benchmarking in each suite:
-        for suite_path, benchmark_pairs in suite_files.items():
+        for benchmark_pairs in suite_files.values():
             for bench, commands, json_path in benchmark_pairs:
                 Hyperfine.run(commands, json_export_path=json_path)
 
