@@ -156,8 +156,8 @@ class MakeWasm(Benchmark):
         suite_path = Path(suite.path)
         interpreter = Path(reference_interpreter.executablePath()).absolute()
         wasi_cc = wasi_sdk.clangPath().absolute()
-        wasm_merge = Path(binaryen.wasmMergeExecutablePath()).absolute()
-        wasm_opt = Path(binaryen.wasmOptExecutablePath()).absolute()
+        wasm_merge = binaryen.wasmMergeExecutablePath().absolute()
+        wasm_opt = binaryen.wasmOptExecutablePath().absolute()
         runCheck("make clean", cwd=suite_path)
         runCheck(
             ["make", wasm_file]
@@ -241,21 +241,20 @@ def runCheck(cmd, msg=None, cwd=None):
     return result
 
 
+@dataclass
 class Binaryen:
-
-    def __init__(self, path: Path):
-        self.path = path
+    path: Path
 
     def build(self):
         cpus = multiprocessing.cpu_count()
         runCheck("cmake .", msg="cmake for binaryen failed", cwd=self.path)
         runCheck(f"make -j {cpus}", msg="building binaryen failed", cwd=self.path)
 
-    def wasmMergeExecutablePath(self) -> str:
-        return str(os.path.join(self.path, "bin", "wasm-merge"))
+    def wasmMergeExecutablePath(self) -> Path:
+        return self.path / "bin" / "wasm-merge"
 
-    def wasmOptExecutablePath(self) -> str:
-        return str(os.path.join(self.path, "bin", "wasm-opt"))
+    def wasmOptExecutablePath(self) -> Path:
+        return self.path / "bin" / "wasm-opt"
 
 
 class Mimalloc:
@@ -279,9 +278,9 @@ class Mimalloc:
         return f"LD_PRELOAD={escaped_path} {shell_command}"
 
 
+@dataclass
 class ReferenceInterpreter:
-    def __init__(self, path: Path):
-        self.path = path
+    path: Path
 
     def executablePath(self) -> Path:
         return self.path / "wasm"
@@ -376,11 +375,11 @@ class Wasmtime:
         self.release_build = release_build
         self.config = config
 
-    def executable_path(self):
+    def executablePath(self) -> Path:
         if self.release_build:
-            return os.path.join(self.path, "target/release/wasmtime")
+            return self.path / "target/release/wasmtime"
         else:
-            return os.path.join(self.path, "target/debug/wasmtime")
+            return self.path / "target/debug/wasmtime"
 
     def build(self, configuration: Config):
         # For the tim
@@ -402,7 +401,7 @@ class Wasmtime:
     def compileWasm(
         self, configuration: Config, input_wasm_path: Path, output_cwasm_path: Path
     ):
-        wasmtime = self.executable_path()
+        wasmtime = str(self.executablePath())
         command = "compile"
 
         if configuration.wasmtime_compile_args is not None:
@@ -428,7 +427,7 @@ class Wasmtime:
         cwasm_path: Path,
         invoke_function=None,
     ):
-        wasmtime = self.executable_path()
+        wasmtime = str(self.executablePath())
         command = "run"
 
         if configuration.wasmtime_run_args is not None:
