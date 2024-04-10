@@ -76,6 +76,15 @@ class Benchmark:
         raise HarnessError("Override me!")
         return "/bin/false"
 
+    def pseudoPath(self, enclosing_suite) -> Path:
+        return Path(enclosing_suite.path) / self.name
+
+    def matchesAnyFilter(
+        self, enclosing_suite: "Suite", filter_globs: List[str]
+    ) -> bool:
+        pseudo_path = self.pseudoPath(enclosing_suite)
+        return any(map(pseudo_path.match, filter_globs))
+
 
 @typechecked
 class MakeWasm(Benchmark):
@@ -632,14 +641,12 @@ class Run:
 
             benchmark_commands = []
             for b in suite.benchmarks:
-                benchmark_pseudopath = suite_path / b.name
-
                 benchmark_filters = args.filter
-                if benchmark_filters and not any(
-                    map(benchmark_pseudopath.match, benchmark_filters)
+                if benchmark_filters and not b.matchesAnyFilter(
+                    suite, benchmark_filters
                 ):
                     logMsg(
-                        f"Skipping benchmark {benchmark_pseudopath} as it does not match filter"
+                        f"Skipping benchmark {b.pseudoPath(suite)} as it does not match filter"
                     )
                     continue
 
@@ -731,14 +738,12 @@ class CompareRevs:
 
             benchmark_pairs: List[Tuple[Benchmark, List[str], Path]] = []
             for b in suite.benchmarks:
-                benchmark_pseudopath = suite_path / b.name
-
                 benchmark_filters = args.filter
-                if benchmark_filters and not any(
-                    map(benchmark_pseudopath.match, benchmark_filters)
+                if benchmark_filters and not b.matchesAnyFilter(
+                    suite, benchmark_filters
                 ):
                     logMsg(
-                        f"Skipping benchmark {benchmark_pseudopath} as it does not match filter"
+                        f"Skipping benchmark {b.pseudoPath(suite)} as it does not match filter"
                     )
                     continue
 
