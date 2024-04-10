@@ -5,6 +5,7 @@ import math
 import config
 import json
 import shlex
+import traceback
 
 from typing import List, Tuple, Optional
 from pathlib import Path
@@ -556,14 +557,12 @@ def checkToolReposPresent(need_second_wasmtime_repo):
         path = Path(REPOS_PATH) / repo
         check(
             path.exists(),
-            f"Expecting {repo_name} repository at {str(path)}, but the folder does not exist",
+            f"Expecting {repo_name} repository at {str(path)}, but the folder does not exist. Consider running 'setup' subcommand.",
         )
         r = GitRepo(path)
         check(
             r.hasRev(expected_root_commit),
-            f"""Repo {repo}  at {path} exists,
-            but does not contain commit {expected_root_commit}, which we
-            expected to find there""",
+            f"Repo {repo}  at {path} exists, but does not contain commit {expected_root_commit}, which we expected to find there. Consider running 'setup' subcommand.",
         )
 
     repos = [SPEC_REPO, BINARYEN_REPO, MIMALLOC_REPO]
@@ -605,8 +604,6 @@ class Run:
         )
 
     def execute(self, args):
-        print("run is running")
-
         checkToolReposPresent(need_second_wasmtime_repo=False)
 
         (mimalloc, interpreter, binaryen) = buildCommonTools()
@@ -703,8 +700,6 @@ class CompareRevs:
         return wasmtime
 
     def execute(self, args):
-        print("compare-revs is running")
-
         checkToolReposPresent(need_second_wasmtime_repo=True)
 
         (mimalloc, interpreter, binaryen) = buildCommonTools()
@@ -850,9 +845,7 @@ class Setup:
                 r = GitRepo(path)
                 check(
                     r.hasRev(expected_root_commit),
-                    f"""Error while setting up {repo} repo at {path}: It exists,
-                    but does not contain commit {expected_root_commit}, which we
-                    expected to find there""",
+                    f"Error while setting up {repo} repo at {path}: It exists, but does not contain commit {expected_root_commit}, which we expected to find there",
                 )
 
             else:
@@ -880,8 +873,6 @@ def checkBuildToolsPresent():
 
 
 def main():
-    checkBuildToolsPresent()
-
     parser = argparse.ArgumentParser(prog="bench")
     namespace = argparse.Namespace()
 
@@ -906,14 +897,19 @@ def main():
         class_.addSubparser(subparsers, namespace)
 
     args = parser.parse_args(namespace=namespace)
-    print(args)
 
     global logLevel
     logLevel = args.verbose
+
+    logMsg(f"CLI args object: {args}")
 
     Class_ = subcommands[args.command]
     Class_().execute(args)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except HarnessError as e:
+        print("Error: " + e.args[0])
+        debugMsg(traceback.format_exc())
