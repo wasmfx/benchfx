@@ -170,9 +170,9 @@ class MakeWasm(Benchmark):
             cwd=suite_path,
         )
 
-        wasmtime.compileWasm(config, suite_path / wasm_file, output_dir / cwasm_file)
+        wasmtime.compileWasm(suite_path / wasm_file, output_dir / cwasm_file)
 
-        run_command = wasmtime.shellCommandCwasmRun(config, output_dir / cwasm_file)
+        run_command = wasmtime.shellCommandCwasmRun(output_dir / cwasm_file)
         return mimalloc.addToShellCommmand(run_command)
 
 
@@ -207,10 +207,10 @@ class Wat(Benchmark):
         wat_path = suite_path / (self.file + ".wat")
         cwasm_path = output_dir / (self.file + ".cwasm")
 
-        wasmtime.compileWasm(config, wat_path, cwasm_path)
+        wasmtime.compileWasm(wat_path, cwasm_path)
 
         run_command = wasmtime.shellCommandCwasmRun(
-            config, cwasm_path, invoke_function=self.invoke
+            cwasm_path, invoke_function=self.invoke
         )
 
         return mimalloc.addToShellCommmand(run_command)
@@ -313,6 +313,7 @@ class Config:
 
     # Wasmtime specific:
     wasmtime_cargo_build_args: Optional[List[str]] = None
+    wasmtime_release_build: bool = True
     wasmtime_compile_args: Optional[List[str]] = None
     wasmtime_run_args: Optional[List[str]] = None
 
@@ -336,6 +337,7 @@ class Config:
 
         prop_parsers = {
             ("use_mimalloc", parseYN),
+            ("wasmtime_release_build", parseYN),
             ("wasmtime_cargo_build_args", splitMultiArgumentString),
             ("wasmtime_compile_args", splitMultiArgumentString),
             (
@@ -372,27 +374,30 @@ class Config:
 
 
 class Wasmtime:
-    def __init__(self, path: Path, release_build=True):
+    def __init__(self, path: Path, configuration: Config):
         self.path = path
-        self.release_build = release_build
-        self.config = config
+        self.config = configuration
 
     def executablePath(self) -> Path:
-        if self.release_build:
+        if self.config.wasmtime_release_build:
             return self.path / "target/release/wasmtime"
         else:
             return self.path / "target/debug/wasmtime"
 
-    def build(self, configuration: Config):
+    def build(self):
         # For the tim
-        release = ["--release"] if self.release_build else []
+        release = ["--release"] if self.config.wasmtime_release_build else []
 
-        if configuration.wasmtime_cargo_build_args is not None:
+        if self.config.wasmtime_cargo_build_args is not None:
             logMsg(
                 "Overriding cargo builds args with "
-                + str(configuration.wasmtime_cargo_build_args)
+                + str(self.config.wasmtime_cargo_build_args)
             )
-        cargo_build_args = configuration.getWasmtimeCargoBuildArgsOrDefault()
+        cargo_build_args = self.config.getWasmtimeCargoBuildArgsOrDefault()
+        check(
+            not "--release" in cargo_build_args,
+            "Do not use wasmtime-cargo-build-args to influnece release vs debug build, consider using wasmtime-release-build option",
+        )
 
         runCheck(
             ["cargo", "build"] + release + cargo_build_args,
@@ -400,18 +405,16 @@ class Wasmtime:
             self.path,
         )
 
-    def compileWasm(
-        self, configuration: Config, input_wasm_path: Path, output_cwasm_path: Path
-    ):
+    def compileWasm(self, input_wasm_path: Path, output_cwasm_path: Path):
         wasmtime = str(self.executablePath())
         command = "compile"
 
-        if configuration.wasmtime_compile_args is not None:
+        if self.config.wasmtime_compile_args is not None:
             logMsg(
                 "Overriding wasmtime compile args with "
-                + str(configuration.wasmtime_compile_args)
+                + str(self.config.wasmtime_compile_args)
             )
-        wasmtime_compile_args = configuration.getWasmtimeCompileArgsOrDefault()
+        wasmtime_compile_args = self.config.getWasmtimeCompileArgsOrDefault()
 
         runCheck(
             [wasmtime, "compile"]
@@ -425,19 +428,18 @@ class Wasmtime:
 
     def shellCommandCwasmRun(
         self,
-        configuration: Config,
         cwasm_path: Path,
         invoke_function=None,
     ):
         wasmtime = str(self.executablePath())
         command = "run"
 
-        if configuration.wasmtime_run_args is not None:
+        if self.config.wasmtime_run_args is not None:
             logMsg(
                 "Overriding wasmtime run args with "
-                + str(configuration.wasmtime_run_args)
+                + str(self.config.wasmtime_run_args)
             )
-        wasmtime_run_args = configuration.getWasmtimeRunArgsOrDefault()
+        wasmtime_run_args = self.config.getWasmtimeRunArgsOrDefault()
 
         invoke_args = []
         if invoke_function:
@@ -687,10 +689,18 @@ def addRevisionSpecificArgsToSubparser(
         action="store",
     )
     subparser.add_argument(
+        f"--{rev_prefix}wasmtime-release-build",
+        help=f"""Should we build wasmtime in release mode? (default: y)""",
+        action="store",
+        choices=["y", "n"],
+        default="y",
+    )
+    subparser.add_argument(
         f"--{rev_prefix}use-mimalloc",
         help=f"""Should we use mimalloc instead of standard system allocator
-        when running benchmarks{desc} (allowed values: y/n, default: y)""",
+        when running benchmarks{desc} (y/n, default: y)""",
         action="store",
+        choices=["y", "n"],
         default="y",
     )
 
@@ -796,9 +806,8 @@ class SubcommandRun:
         wasmtime_repo = GitRepo(wasmtime_repo_path)
         logMsg(f"wasmtime repo dirty? {wasmtime_repo.isDirty()}")
         wasmtime_repo.checkout(cli_args.wasmtime_rev)
-        wasmtime = Wasmtime(wasmtime_repo_path)
-
-        wasmtime.build(configuration)
+        wasmtime = Wasmtime(wasmtime_repo_path, configuration)
+        wasmtime.build()
 
         suite_shell_commands = {}
 
@@ -890,8 +899,8 @@ class SubcommandCompareRevs:
         wasmtime_repo = GitRepo(repo_path)
         logMsg(f"wasmtime repo dirty? {wasmtime_repo.isDirty()}")
         wasmtime_repo.checkout(revision)
-        wasmtime = Wasmtime(repo_path)
-        wasmtime.build(configuration)
+        wasmtime = Wasmtime(repo_path, configuration)
+        wasmtime.build()
         return wasmtime
 
     def execute(self, cli_args: argparse.Namespace):
