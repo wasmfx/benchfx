@@ -224,8 +224,10 @@ def run(cmd: str | List[str], cwd=None) -> subprocess.CompletedProcess:
     cwd_msg = f" in directory {cwd}" if cwd is not None else ""
     logMsg(f"Running command{cwd_msg}:\n{command}")
     res = subprocess.run(command, cwd=cwd, capture_output=True, shell=True, text=True)
-    logProcessOutput("STDOUT:\n" + res.stdout, sep="")
-    logProcessOutput("STDERR:\n" + res.stderr, sep="")
+    if res.stdout:
+        logProcessOutput("STDOUT:\n" + res.stdout, sep="")
+    if res.stderr:
+        logProcessOutput("STDERR:\n" + res.stderr, sep="")
     return res
 
 
@@ -1100,7 +1102,7 @@ class SubcommandSetup:
 
 
 def main():
-    parser = argparse.ArgumentParser(prog="bench")
+    parser = argparse.ArgumentParser(prog="harness")
 
     parser.add_argument(
         "--verbose",
