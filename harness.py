@@ -768,6 +768,13 @@ class SubcommandRun:
             action="store_true",
             default=False,
         )
+        parser.add_argument(
+            "wasmtime_rev",
+            help="Instead of config.WASMTIME_REVISION, use this wasmtime revision instead (optional)",
+            action="store",
+            default=config.WASMTIME_REVISION,
+            nargs="?",
+        )
 
         addRevisionSpecificArgsToSubparser(parser)
 
@@ -786,7 +793,7 @@ class SubcommandRun:
         logMsg(f"wasmtime repo expected at {wasmtime_repo_path}")
         wasmtime_repo = GitRepo(wasmtime_repo_path)
         logMsg(f"wasmtime repo dirty? {wasmtime_repo.isDirty()}")
-        wasmtime_repo.checkout(config.WASMTIME_REVISION)
+        wasmtime_repo.checkout(cli_args.wasmtime_rev)
         wasmtime = Wasmtime(wasmtime_repo_path)
 
         wasmtime.build(configuration)
