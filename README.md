@@ -146,11 +146,15 @@ Within each suite, only compare the `wasmfx` implementations against `asyncify`:
 ./harness.py run --filter="*/*wasmfx*" --filter="*/*asyncify*"
 ```
 
-Running benchmarks using a particular wasmtime commit 
+Running benchmarks using a particular wasmtime commit: 
 ``` shell
 ./harness.py run my-special-feature-branch
 ```
 
+Enable verbose mode of harness itself (note `-v` appearing *before* subcommand name), disable `mimalloc` use:
+```shell
+./harness.py -v run --use-mimalloc=n
+```
 
 ## Gotchas
 
