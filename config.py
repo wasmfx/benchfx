@@ -18,15 +18,15 @@ BENCHMARK_SUITES : List[Suite]= [
           benchmarks = [Wat("bench", invoke="run")]),
 ]
 
-MIMALLOC_COMMIT = "v2.1.2"
+MIMALLOC_REVISION = "v2.1.2"
 
 # Binaryen main branch as of April 8, 2024
-BINARYEN_COMMIT = "102c3633d2378457dae1f5e239fd63ad80eefb92"
+BINARYEN_REVISION = "102c3633d2378457dae1f5e239fd63ad80eefb92"
 
 # wasmfx/main as of April 9, 2024
-WASMTIME_COMMIT = "7f63b553c3d2c91d7fe3ef0902ed1543f2fd1821"
+WASMTIME_REVISION = "7f63b553c3d2c91d7fe3ef0902ed1543f2fd1821"
 
-SPEC_COMMIT="4f8d8c7359e6b157236f9245b2a423be9a117782"
+SPEC_REVISION="4f8d8c7359e6b157236f9245b2a423be9a117782"
 
 WASMTIME_CARGO_BUILD_ARGS = ["--features=default,unsafe_disable_continuation_linearity_check"]
 WASMTIME_RUN_ARGS = ["-W=exceptions,function-references,typed-continuations",

@@ -623,7 +623,7 @@ def prepareCommonTools() -> Tuple[WasiSdk, Mimalloc, ReferenceInterpreter, Binar
     # Mimalloc setup
     mimalloc_repo_path = REPOS_PATH / MIMALLOC_REPO
     mimalloc_repo = GitRepo(mimalloc_repo_path)
-    mimalloc_repo.checkout(config.MIMALLOC_COMMIT)
+    mimalloc_repo.checkout(config.MIMALLOC_REVISION)
     mimalloc = Mimalloc(mimalloc_repo_path)
     mimalloc.build()
 
@@ -632,7 +632,7 @@ def prepareCommonTools() -> Tuple[WasiSdk, Mimalloc, ReferenceInterpreter, Binar
     logMsg(f"spec repo expected at {spec_repo_path}")
     spec_repo = GitRepo(spec_repo_path)
     logMsg(f"spec repo dirty? {spec_repo.isDirty()}")
-    spec_repo.checkout(config.SPEC_COMMIT)
+    spec_repo.checkout(config.SPEC_REVISION)
     interpreter_path = Path(os.path.join(spec_repo_path, "interpreter"))
     interpreter: ReferenceInterpreter = ReferenceInterpreter(interpreter_path)
     interpreter.build()
@@ -642,7 +642,7 @@ def prepareCommonTools() -> Tuple[WasiSdk, Mimalloc, ReferenceInterpreter, Binar
     logMsg(f"binaryen repo expected at {binaryen_repo_path}")
     binaryen_repo = GitRepo(binaryen_repo_path)
     logMsg(f"binaryen repo dirty? {binaryen_repo.isDirty()}")
-    binaryen_repo.checkout(config.BINARYEN_COMMIT)
+    binaryen_repo.checkout(config.BINARYEN_REVISION)
     binaryen = Binaryen(binaryen_repo_path)
     binaryen.build()
 
@@ -786,7 +786,7 @@ class SubcommandRun:
         logMsg(f"wasmtime repo expected at {wasmtime_repo_path}")
         wasmtime_repo = GitRepo(wasmtime_repo_path)
         logMsg(f"wasmtime repo dirty? {wasmtime_repo.isDirty()}")
-        wasmtime_repo.checkout(config.WASMTIME_COMMIT)
+        wasmtime_repo.checkout(config.WASMTIME_REVISION)
         wasmtime = Wasmtime(wasmtime_repo_path)
 
         wasmtime.build(configuration)
