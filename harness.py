@@ -633,9 +633,7 @@ def prepareCommonTools() -> Tuple[WasiSdk, Mimalloc, ReferenceInterpreter, Binar
 
     # Reference interpreter setup
     spec_repo_path = REPOS_PATH / SPEC_REPO
-    logMsg(f"spec repo expected at {spec_repo_path}")
     spec_repo = GitRepo(spec_repo_path)
-    logMsg(f"spec repo dirty? {spec_repo.isDirty()}")
     spec_repo.checkout(config.SPEC_REVISION)
     interpreter_path = Path(os.path.join(spec_repo_path, "interpreter"))
     interpreter: ReferenceInterpreter = ReferenceInterpreter(interpreter_path)
@@ -643,9 +641,7 @@ def prepareCommonTools() -> Tuple[WasiSdk, Mimalloc, ReferenceInterpreter, Binar
 
     # Binaryen setup
     binaryen_repo_path = REPOS_PATH / BINARYEN_REPO
-    logMsg(f"binaryen repo expected at {binaryen_repo_path}")
     binaryen_repo = GitRepo(binaryen_repo_path)
-    logMsg(f"binaryen repo dirty? {binaryen_repo.isDirty()}")
     binaryen_repo.checkout(config.BINARYEN_REVISION)
     binaryen = Binaryen(binaryen_repo_path)
     binaryen.build()
