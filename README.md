@@ -30,6 +30,12 @@ _benchmark suite_, which is uniquely identified by a subfolder inside the benchf
 repository and contains logically related benchmarks (e.g., different
 implementations of the same program to compare their performance).
 
+The harness is designed such that all dependencies (including wasmtime) are
+built from source at fixed commits or a specific version is downloaded.
+In other words, invoking `./harness.py` with the same options at the same
+revision of the `benchfx` repository (and therefore the same definitions in
+`config.py`), should uniquely determine the exact versions of all dependencies as well as the
+flags they are built and run with.
 
 ## `setup` subcommand
 
