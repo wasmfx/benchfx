@@ -16,9 +16,9 @@ The simplest way of running all the benchmarks is as follows:
 ./harness run 
  ```
 
-Note that both the toplevel harness and the individual subcommand have `--help` options:
+Note that both the toplevel harness and the individual subcommand each have `--help` options:
 ```shell
-./harness --help
+./harness              --help
 ./harness setup        --help
 ./harness run          --help
 ./harness compare-revs --help
@@ -37,8 +37,12 @@ The benchmark harness uses and controls the following repositories as subfolders
 in `tools/repos`:
 * `mimalloc`
 * `binaryen`
-* The wasm reference interpreter
+* `spec`, containing the wasm reference interpreter
 * Two versions of wasmtime, called `wasmtime1` and `wasmtime2`
+
+Before each benchmark run, the harness checks out and builds the requested
+revision of each tool (determined either in `config.py` or overridden with a
+command line flag) before running benchmarks. 
 
 When running `./harness.py setup`, the harness checks that these repositories
 exist and if not, clones them from Github appropriately.
@@ -48,7 +52,7 @@ version configured in `config.py` exists in the `tools` subdirectory and
 downloads it otherwise. 
 
 
-In addition, the harness requires a few standard tools (`hyperfine, ``cmake`,
+In addition, the harness requires a few standard tools (`hyperfine, `cmake`,
 `make`, `dune`, ... ) and will report and error if these are not found in
 `$PATH`. These must be installed manually by the user.
 
@@ -88,17 +92,17 @@ built and run, see `./harness.py run --help` for a full list of options.
 The `--filter` option can be used to run only a subset of the benchmarks.
 
 Filters are ordinary glob patterns that are matched against a pseudo-path identifying each
-benchmark, of the form `<suite's path/<benchmark name>`. For example
+benchmark, of the form `<suite's path>/<benchmark name>`. For example
 the suite with path `c10m` contains a benchmark called `c10m_wasmfx`. It is
 selected if the glob filter matches the pseudo-path `c10m/c10m_wasmfx`.
 
-The `--filter` option can be used multiple times, and the harness will run all
-benchmarks that match _any_ of the filters.
+The `--filter` option can be used multiple times, and the harness will run a
+benchmark if it matches _any_ of the filters.
 
 
 ## `compare-revs` subcommand
 
-This subcommand is supposed to compare two revisions of wasmtime, _rev1_ and
+This subcommand can be used to compare two revisions of wasmtime, _rev1_ and
 _rev2_ against each other. Unlike the `run` subcommand, benchmarks are not
 compare against the others in the same suite. Instead, for each suite _s_ and
 each benchmark _b_ in _s_, we compare _b_ executed by wasmtime _rev1_ against
@@ -122,7 +126,7 @@ but varying the other options, we can determine their influence.
 
  
 ``` shell
-./harness.py compare-revs   --filter="*/*wasmfx*" \
+./harness.py compare-revs --filter="*/*wasmfx*" \
   --rev1-wasmtime-run-args="-W=exceptions,function-references,typed-continuations -Wwasmfx-stack-size=4096 -Wwasmfx-red-zone-size=0" \
   --rev2-wasmtime-run-args="-W=exceptions,function-references,typed-continuations -Wwasmfx-stack-size=8192 -Wwasmfx-red-zone-size=0" \
   my-branch my-branch 
