@@ -2,10 +2,12 @@
 // does not use any form of coroutines.
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <inttypes.h>
 
 #include <wasm.h>
+#include <fiber.h>
 
 #include "parameters.h"
 
@@ -35,9 +37,11 @@ uint64_t skynet(uint32_t level, uint64_t num) {
   }
 }
 
-
 int main(void) {
+  fiber_setup();
   int64_t my_number = skynet(6, 0);
-  //printf("%" PRIu64 "\n", my_number);
-  return verify(my_number, reference);
+  // printf("%" PRIu64 "\n", my_number);
+  fiber_teardown();
+  int result = verify(my_number, reference);
+  return result;
 }

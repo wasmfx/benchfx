@@ -37,10 +37,11 @@ struct skynet_args {
   uint64_t result;
 };
 
-static void* run_skynet(struct skynet_args *args) {
+void* run_skynet(struct skynet_args *args) {
   result_slot = skynet(args->level, args->num);
   return NULL;
 }
+
 
 __noinline
 __wasm_export("handle")

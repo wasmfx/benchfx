@@ -7,7 +7,7 @@
 #include <fiber.h>
 #include <wasm.h>
 
-static void* filter(void *prime) {
+void* filter(void *prime) {
   uint32_t my_prime = *((uint32_t*)prime);
   uint32_t *candidate = (uint32_t*)fiber_yield(NULL);
   while (*candidate != 0) {

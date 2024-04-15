@@ -7,6 +7,7 @@
 #include <inttypes.h>
 
 #include <wasm.h>
+#include <fiber.h>
 
 #include "parameters.h"
 
@@ -64,12 +65,17 @@ size_t sieve(uint32_t *primes, const size_t len) {
   return p;
 }
 
+
+
+
 int main(void) {
+  fiber_setup();
   const size_t primes_len = sizeof(reference) / sizeof(uint32_t);
   uint32_t primes[primes_len];
   size_t num_primes = sieve(primes, primes_len);
 
   print_primes(primes, num_primes);
   int exit_code = verify(primes, num_primes, reference, primes_len);
+  fiber_teardown();
   return exit_code;
 }
