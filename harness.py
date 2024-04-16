@@ -16,7 +16,7 @@ from typing import List, Tuple, Optional
 
 
 WASI_SDK_BASE_PATH = Path("tools/wasi-sdk")
-REPOS_PATH = Path("tools/repos")
+REPOS_PATH = Path("tools/external")
 
 SPEC_REPO = "spec"
 BINARYEN_REPO = "binaryen"

@@ -40,7 +40,7 @@ flags they are built and run with.
 ## `setup` subcommand
 
 The benchmark harness uses and controls the following repositories as subfolders
-in `tools/repos`:
+in `tools/external`:
 * `mimalloc`
 * `binaryen`
 * `spec`, containing the wasm reference interpreter
@@ -70,7 +70,7 @@ commits only available in a local development repository.
 
 The `setup` subcommand therefore allows that instead of checking out `wasmtime`
 from Github, it creates two [`git
-worktrees`](https://git-scm.com/docs/git-worktree) inside `tools/repos/`, which
+worktrees`](https://git-scm.com/docs/git-worktree) inside `tools/external/`, which
 are connected to your development repository elsewhere.
 This can be achieved as follows:
 
@@ -79,7 +79,7 @@ This can be achieved as follows:
   --wasmtime-create-worktree-from-development-repo ~/path/to/my-wasmtime-devel-repository
 ```
 
-This effectively means that `tools/repos/wasmtime1` and `tools/repos/wasmtime2`
+This effectively means that `tools/external/wasmtime1` and `tools/external/wasmtime2`
 are not independent git repositories, but share the `.git` folder with the
 development repository and can see all commits therein.
 
