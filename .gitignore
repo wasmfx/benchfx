@@ -71,3 +71,12 @@ c/
 x64-effects/
 Dockerfile
 docker.nix
+
+# Ignore the repos for external tools
+tools/external/
+
+# Ignore where we download WASI SKDS
+tools/wasi-sdk/
+
+# Ignore toplevel output folder
+out/
