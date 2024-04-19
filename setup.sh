@@ -6,7 +6,7 @@
 
 BINARYEN_URL=https://github.com/WebAssembly/binaryen/releases/download/version_116/binaryen-version_116-x86_64-linux.tar.gz
 MIMALLOC_URL=https://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.2.tar.gz
-WASI_SDK_URL=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-21/wasi-sdk-21.0-linux.tar.gz
+WASI_SDK_URL=https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-22/wasi-sdk-22.0-linux.tar.gz
 ROOT_DIR=$(pwd)
 
 # params: dependency name, dependency url
@@ -104,7 +104,7 @@ function install_mimalloc()
 
 function install_wasi_sdk()
 {
-    if [[ -d "wasi-sdk-21.0" ]]; then
+    if [[ -d "wasi-sdk-22.0" ]]; then
        echo "info: WASI SDK seems to be already installed... skipping..."
        return
     fi

@@ -76,4 +76,4 @@ GITHUB_REPOS = {
     ),
 }
 
-WASI_SDK_VERSION = "20"
+WASI_SDK_VERSION = "22"
