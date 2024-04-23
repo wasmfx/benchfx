@@ -174,7 +174,11 @@ class MakeWasm(Benchmark):
         wasmtime.compileWasm(suite_path / wasm_make_target, output_dir / cwasm_file)
 
         run_command = wasmtime.shellCommandCwasmRun(output_dir / cwasm_file)
-        return mimalloc.addToShellCommmand(run_command)
+        return (
+            mimalloc.addToShellCommmand(run_command)
+            if config.use_mimalloc
+            else run_command
+        )
 
 
 class Wat(Benchmark):
@@ -214,7 +218,11 @@ class Wat(Benchmark):
             cwasm_path, invoke_function=self.invoke
         )
 
-        return mimalloc.addToShellCommmand(run_command)
+        return (
+            mimalloc.addToShellCommmand(run_command)
+            if config.use_mimalloc
+            else run_command
+        )
 
 
 def run(cmd: str | List[str], cwd=None) -> subprocess.CompletedProcess:
