@@ -11,7 +11,7 @@ static const uint32_t stack_kb = 32;
 
 static const uint32_t reference = 10010000;
 
-static int verify(const uint32_t my_count, const uint32_t reference) {
+ __attribute__ ((unused)) static int verify(const uint32_t my_count, const uint32_t reference) {
   if (my_count == reference) return 0;
   else return 1;
 }

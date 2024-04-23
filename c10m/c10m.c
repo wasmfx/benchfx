@@ -46,7 +46,7 @@ void stack_use(long totalkb) {
   size_t page_size = 4096;
   size_t total_pages = ((size_t)totalkb*1024 + page_size - 1) / page_size;
   for (size_t i = 0; i < total_pages; i++) {
-    volatile uint8_t b = *(sp - (i * page_size));
+     __attribute__ ((unused)) volatile uint8_t b = *(sp - (i * page_size));
   }
 }
 
@@ -81,8 +81,8 @@ uint32_t async_wl(void) {
     count += resume_async_worker(j, stack_kb); // do the work
     free_async_worker(j);
   }
-  size_t total_kb = total_conn * stack_kb;
-  double total_mb = (double)(total_conn * stack_kb) / 1024.0;
+   __attribute__ ((unused)) size_t total_kb = total_conn * stack_kb;
+   __attribute__ ((unused)) double total_mb = (double)(total_conn * stack_kb) / 1024.0;
   //printf("total stack used: %.3fmb, count=%" PRIu32 "\n", total_mb, count);
   return count;
 }
