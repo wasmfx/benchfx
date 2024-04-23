@@ -171,7 +171,7 @@ class MakeWasm(Benchmark):
             cwd=suite_path,
         )
 
-        wasmtime.compileWasm(suite_path / wasm_file, output_dir / cwasm_file)
+        wasmtime.compileWasm(suite_path / wasm_make_target, output_dir / cwasm_file)
 
         run_command = wasmtime.shellCommandCwasmRun(output_dir / cwasm_file)
         return mimalloc.addToShellCommmand(run_command)
