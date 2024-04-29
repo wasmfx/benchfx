@@ -152,6 +152,7 @@ class MakeWasm(Benchmark):
         wasmtime,
     ):
         wasm_file = self.file + ".wasm"
+        wasm_make_target = Path("out") / wasm_file
         cwasm_file = self.file + ".cwasm"
         suite_path = Path(suite.path)
         interpreter = Path(reference_interpreter.executablePath()).absolute()
@@ -160,7 +161,7 @@ class MakeWasm(Benchmark):
         wasm_opt = binaryen.wasmOptExecutablePath().absolute()
         runCheck("make clean", cwd=suite_path)
         runCheck(
-            ["make", wasm_file]
+            ["make", str(wasm_make_target)]
             + [
                 f"WASICC={wasi_cc}",
                 f"WASM_INTERP={interpreter}",
@@ -170,7 +171,7 @@ class MakeWasm(Benchmark):
             cwd=suite_path,
         )
 
-        wasmtime.compileWasm(suite_path / wasm_file, output_dir / cwasm_file)
+        wasmtime.compileWasm(suite_path / wasm_make_target, output_dir / cwasm_file)
 
         run_command = wasmtime.shellCommandCwasmRun(output_dir / cwasm_file)
         return mimalloc.addToShellCommmand(run_command)
