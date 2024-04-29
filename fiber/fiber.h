@@ -2,7 +2,7 @@
 #ifndef __FIBER_H
 #define __FIBER_H
 
-#include "wasm.h"
+#include <stdlib.h>
 
 /** The signature of a fiber entry point. **/
 typedef void* (*fiber_entry_point_t)(void*);
