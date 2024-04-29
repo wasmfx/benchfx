@@ -44,7 +44,6 @@ void* run_skynet(struct skynet_args *args) {
   return NULL;
 }
 
-
 __noinline
 __wasm_export("handle")
 uint64_t handle(uint32_t level, uint64_t num) {

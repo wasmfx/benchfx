@@ -1,7 +1,6 @@
 // An abstract effectful implementation of stateful counting.
 
 #include <stdint.h>
-#include <stdlib.h>
 #include <wasm.h>
 #include <fiber.h>
 
