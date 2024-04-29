@@ -7,13 +7,13 @@
 typedef size_t cont_table_index;
 typedef void (*__funcref funcref_t)();
 
-const size_t INITIAL_TABLE_CAPACITY = 1024;
+static const size_t INITIAL_TABLE_CAPACITY = 1024;
 
-size_t cont_table_capacity = INITIAL_TABLE_CAPACITY;
-size_t cont_table_unused_size = INITIAL_TABLE_CAPACITY;
+static size_t cont_table_capacity = INITIAL_TABLE_CAPACITY;
+static size_t cont_table_unused_size = INITIAL_TABLE_CAPACITY;
 
-size_t* free_list = NULL;
-size_t free_list_size = 0;
+static size_t* free_list = NULL;
+static size_t free_list_size = 0;
 
 
 extern
