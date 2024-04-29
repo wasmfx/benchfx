@@ -712,7 +712,7 @@ def checkBenchFxRepoClean():
 
 def checkDependenciesPresent(need_second_wasmtime_repo):
     def checkExternalToolsPresent():
-        tools = ["make", "cmake", "dune", "hyperfine"]
+        tools = ["make", "cmake", "dune", "hyperfine", "cargo"]
         for tool in tools:
             runCheck(
                 f"command -v {tool}",
@@ -1154,3 +1154,4 @@ if __name__ == "__main__":
     except HarnessError as e:
         print("Error: " + e.args[0])
         logProcessOutput(traceback.format_exc())
+        sys.exit(1)
