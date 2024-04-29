@@ -670,6 +670,14 @@ def addSharedArgsToSubparser(parser):
         action="store_true",
         default=False,
     )
+    parser.add_argument(
+        "--prepare-only",
+        help="""Perform all preparation steps (for external tools and benchmarks
+        themselves), but do not actually run benchmarks. Instead, print the shell
+        commands that would be compare against each other.""",
+        action="store_true",
+        default=False,
+    )
 
 
 def addRevisionSpecificArgsToSubparser(
@@ -861,8 +869,12 @@ class SubcommandRun:
             #
 
         # Perform actual benchmarking in each suite:
-        for _suite_path, benchmark_commands in suite_shell_commands.items():
-            Hyperfine.run(benchmark_commands, print_stdout=True)
+        for suite_path, benchmark_commands in suite_shell_commands.items():
+            if cli_args.prepare_only:
+                print(f"Commands for suite {suite_path}:")
+                print("\n".join(benchmark_commands))
+            else:
+                Hyperfine.run(benchmark_commands, print_stdout=True)
 
 
 class SubcommandCompareRevs:
@@ -979,23 +991,29 @@ class SubcommandCompareRevs:
             if benchmark_pairs:
                 suite_files[suite_path] = benchmark_pairs
 
-        # Perform actual benchmarking in each suite:
-        for benchmark_pairs in suite_files.values():
-            for bench, commands, json_path in benchmark_pairs:
-                Hyperfine.run(commands, json_export_path=json_path)
+        if cli_args.prepare_only:
+            for suite_path, benchmark_pairs in suite_files.items():
+                for bench, commands, json_path in benchmark_pairs:
+                    print(f"Commands for suite {suite_path}, benchmark {bench.name}:")
+                    print("\n".join(commands))
+        else:
+            # Perform actual benchmarking in each suite:
+            for benchmark_pairs in suite_files.values():
+                for bench, commands, json_path in benchmark_pairs:
+                    Hyperfine.run(commands, json_export_path=json_path)
 
-        # Print results from each suite
-        print(
-            "Results: (for each benchmark, showing mean runtime in rev1 / mean runtime in rev2)"
-        )
-        for suite_path, benchmark_pairs in suite_files.items():
-            print(f"Suite: {suite_path}")
-            for bench, _, json_path in benchmark_pairs:
-                with open(json_path, "r") as f:
-                    results = json.load(f)["results"]
-                    rev1_mean = results[0]["mean"]
-                    rev2_mean = results[1]["mean"]
-                    print(f"{bench.name}: {rev1_mean / rev2_mean}")
+            # Print results from each suite
+            print(
+                "Results: (for each benchmark, showing mean runtime in rev1 / mean runtime in rev2)"
+            )
+            for suite_path, benchmark_pairs in suite_files.items():
+                print(f"Suite: {suite_path}")
+                for bench, _, json_path in benchmark_pairs:
+                    with open(json_path, "r") as f:
+                        results = json.load(f)["results"]
+                        rev1_mean = results[0]["mean"]
+                        rev2_mean = results[1]["mean"]
+                        print(f"{bench.name}: {rev1_mean / rev2_mean}")
 
 
 class SubcommandSetup:
