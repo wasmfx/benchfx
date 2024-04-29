@@ -35,8 +35,8 @@ void* fiber_resume(fiber_t fiber, void *arg, fiber_result_t *result);
 extern
 void fiber_setup();
 
-/** Un-Initializes fiber support. If fiber_initialize has ever beed called, then
-    fiber_uninitialize must balled prior to exiting the program. **/
+/** Un-initializes fiber support. If fiber_initialize has ever beed called, then
+    fiber_uninitialize must called prior to exiting the program. **/
 extern
 void fiber_teardown();
 
