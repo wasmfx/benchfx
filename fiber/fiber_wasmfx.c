@@ -1,11 +1,15 @@
 // An implementation of the fiber.h interface using wasmfx continuations
 #include <stdlib.h>
+#include <stdint.h>
 
 #include "fiber.h"
 #include "wasm.h"
 
-// Type for indices into the continuation table `$conts` on the wasm side.
-typedef size_t cont_table_index;
+// Type for indices into the continuation table `$conts` on the wasm side. In
+// this implementation, we consider `fiber_t` (which is a pointer to an
+// incomplete type) to be equivalent to `cont_table_index_t` and freely convert
+// between the two.
+typedef uintptr_t cont_table_index_t;
 
 // Initial size of the `$conts` table. Keep this value in sync with the
 // corresponding (table ...) definition.
@@ -35,7 +39,7 @@ void wasmfx_grow_cont_table(size_t);
 
 extern
 __wasm_import("fiber_wasmfx_imports", "wasmfx_indexed_cont_new")
-void wasmfx_indexed_cont_new(fiber_entry_point_t, cont_table_index);
+void wasmfx_indexed_cont_new(fiber_entry_point_t, cont_table_index_t);
 
 extern
 __wasm_import("fiber_wasmfx_imports", "wasmfx_indexed_resume")
@@ -46,8 +50,8 @@ __wasm_import("fiber_wasmfx_imports", "wasmfx_suspend")
 void* wasmfx_suspend(void *arg);
 
 
-size_t wasmfx_acquire_table_index() {
-  size_t table_index;
+ cont_table_index_t wasmfx_acquire_table_index() {
+  uintptr_t table_index;
   if (cont_table_unused_size > 0) {
     // There is an entry in the continuation table that has not been used so far.
     table_index = cont_table_capacity - cont_table_unused_size;
@@ -75,7 +79,7 @@ size_t wasmfx_acquire_table_index() {
   return table_index;
 }
 
-void wasmfx_release_table_index(cont_table_index table_index) {
+void wasmfx_release_table_index(cont_table_index_t table_index) {
   free_list[free_list_size] = table_index;
   free_list_size++;
 }
@@ -83,15 +87,15 @@ void wasmfx_release_table_index(cont_table_index table_index) {
 
 __wasm_export("fiber_alloc")
 fiber_t fiber_alloc(fiber_entry_point_t entry) {
-  size_t table_index = wasmfx_acquire_table_index();
+  cont_table_index_t table_index = wasmfx_acquire_table_index();
   wasmfx_indexed_cont_new(entry, table_index);
 
-  return (void*) table_index;
+  return (fiber_t) table_index;
 }
 
 __wasm_export("fiber_free")
 void fiber_free(fiber_t fiber) {
-  size_t table_index = (size_t) fiber;
+  cont_table_index_t table_index = (cont_table_index_t) fiber;
 
   // NOTE: Currently, fiber stacks are deallocated only when the continuation
   // returns. Thus, the only thing we can do here is releasing the table index.
@@ -100,8 +104,8 @@ void fiber_free(fiber_t fiber) {
 
 __wasm_export("fiber_resume")
 void* fiber_resume(fiber_t fiber, void *arg, fiber_result_t *result) {
-  size_t fiber_index = (size_t) fiber;
-  return wasmfx_indexed_resume(fiber_index, arg, result);
+  cont_table_index_t table_index = (cont_table_index_t) fiber;
+  return wasmfx_indexed_resume(table_index, arg, result);
 }
 
 __wasm_export("fiber_yield")
