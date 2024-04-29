@@ -658,6 +658,20 @@ def prepareCommonTools() -> Tuple[WasiSdk, Mimalloc, ReferenceInterpreter, Binar
     return (wasi_sdk, mimalloc, interpreter, binaryen)
 
 
+def addSharedArgsToSubparser(parser):
+    parser.add_argument(
+        "--filter",
+        help="Only run benchmarks that match this glob pattern",
+        action="append",
+    )
+    parser.add_argument(
+        "--allow-dirty",
+        help="Allows the benchfx repo to be dirty when running benchmarks",
+        action="store_true",
+        default=False,
+    )
+
+
 def addRevisionSpecificArgsToSubparser(
     subparser,
     revision_qualifier: Optional[str] = None,
@@ -775,17 +789,6 @@ class SubcommandRun:
         parser = subparsers.add_parser("run", help="runs benchmarks (used by default)")
 
         parser.add_argument(
-            "--filter",
-            help="Only run benchmarks that match this glob pattern",
-            action="append",
-        )
-        parser.add_argument(
-            "--allow-dirty",
-            help="Allows the benchfx repo to be dirty when running benchmarks",
-            action="store_true",
-            default=False,
-        )
-        parser.add_argument(
             "wasmtime_rev",
             help="Instead of config.WASMTIME_REVISION, use this wasmtime revision instead (optional)",
             action="store",
@@ -793,6 +796,7 @@ class SubcommandRun:
             nargs="?",
         )
 
+        addSharedArgsToSubparser(parser)
         addRevisionSpecificArgsToSubparser(parser)
 
     def execute(self, cli_args: argparse.Namespace):
@@ -876,23 +880,13 @@ class SubcommandCompareRevs:
             first revision of wasmtime against second one""",
         )
         parser.add_argument(
-            "--filter",
-            help="Only run benchmarks that match this glob pattern",
-            action="append",
-        )
-        parser.add_argument(
-            "--allow-dirty",
-            help="Allows the benchfx repo to be dirty when running benchmarks",
-            action="store_true",
-            default=False,
-        )
-        parser.add_argument(
             "revision1", help="First Wasmtime revision to use in the comparison"
         )
         parser.add_argument(
             "revision2", help="Second Wasmtime revision to use in the comparison"
         )
 
+        addSharedArgsToSubparser(parser)
         addRevisionSpecificArgsToSubparser(
             parser, revision_qualifier="rev1", desc="revision 1"
         )
