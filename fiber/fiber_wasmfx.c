@@ -1,18 +1,31 @@
-// An implementation of the basic fiber interface using wasmfx continuations
+// An implementation of the fiber.h interface using wasmfx continuations
 #include <stdlib.h>
 
 #include "fiber.h"
 #include "wasm.h"
 
+// Type for indices into the continuation table `$conts` on the wasm side.
 typedef size_t cont_table_index;
-typedef void (*__funcref funcref_t)();
 
+// Initial size of the `$conts` table. Keep this value in sync with the
+// corresponding (table ...) definition.
 static const size_t INITIAL_TABLE_CAPACITY = 1024;
 
+// The current capacity of the `$conts` table.
 static size_t cont_table_capacity = INITIAL_TABLE_CAPACITY;
+// Number of entries at the end of `$conts` table that we have never used so
+// far.
+// Invariant:
+// `cont_table_unused_size` + `free_list_size` <= `cont_table_capacity`
 static size_t cont_table_unused_size = INITIAL_TABLE_CAPACITY;
 
+// This is a stack of indices into `$conts` that we have previously used, but
+// subsequently freed. Allocated as part of `fiber_setup`. Invariant: Once
+// allocated, the capacity of the `free_list` (i.e., the number of `size_t`
+// values we allocate memory for) is the same as `cont_table_capacity`.
 static size_t* free_list = NULL;
+// Number of entries in `free_list`.
+// Invariant: free_list_size <= `cont_table_capacity`.
 static size_t free_list_size = 0;
 
 
@@ -40,23 +53,29 @@ size_t wasmfx_acquire_table_index() {
     table_index = cont_table_capacity - cont_table_unused_size;
     cont_table_unused_size--;
   } else if (free_list_size > 0) {
-      // We pop an element from the free list stack
+      // We can pop an element from the free list stack.
       table_index = free_list[free_list_size - 1];
       free_list_size--;
   } else {
-      // We have run out of table entries:
-      // Ask wasm to grow the table, and we grow the free_list ourselves.
-      table_index = cont_table_capacity;
-      cont_table_unused_size = cont_table_capacity - 1;
+      // We have run out of table entries.
+      size_t new_cont_table_capacity = 2 * cont_table_capacity;
+
+      // Ask wasm to grow the table by the previous size, and we grow the
+      // `free_list` ourselves.
       wasmfx_grow_cont_table(cont_table_capacity);
-      cont_table_capacity *= 2;
       free(free_list);
-      free_list = malloc(sizeof(size_t) * cont_table_capacity);
+      free_list = malloc(sizeof(size_t) * new_cont_table_capacity);
+
+      // We added `cont_table_capacity` new entries to the table, and then
+      // immediately consume one for the new continuation.
+      cont_table_unused_size = cont_table_capacity - 1;
+      table_index = cont_table_capacity;
+      cont_table_capacity = new_cont_table_capacity;
   }
   return table_index;
 }
 
-void wasmfx_release_table_index(size_t table_index) {
+void wasmfx_release_table_index(cont_table_index table_index) {
   free_list[free_list_size] = table_index;
   free_list_size++;
 }
