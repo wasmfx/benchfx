@@ -4,8 +4,10 @@
   (type $ct1 (cont $ft1))
   (type $ct2 (cont $ft2))
 
+  ;; We must make sure that there is only a single memory, so that our
+  ;; load/store instructions act on the C heap, not a separate memory.
   (import "benchmark" "memory" (memory $0 2))
-  ;; This is the indirect function table created by clang.
+  ;; This is created by clang to translate function pointers.
   (import "benchmark" "__indirect_function_table" (table $indirect_function_table 0 funcref))
 
 
@@ -22,12 +24,17 @@
   (global $fiber_result_t_yield i32 (i32.const 1))
 
 
-
   (func $grow_cont_table (export "wasmfx_grow_cont_table") (param $capacity_delta i32)
     (table.grow $conts (ref.null $ct1) (local.get $capacity_delta))
     (drop)
   )
 
+  ;; This function is the entry point of all of our continuations.
+  ;; clang translates function pointers into indices into the
+  ;; `$indirect_function_table`, and the latter contains entries of type
+  ;; `funcref`. There is no way to downcast from `funcref` to a concrete function
+  ;; reference type. Thus we cannot call `cont.new` on entries from
+  ;; `$indirect_function_table` directly, but must use this trampoline instead.
   (func $wasmfx_entry_trampoline (param $func_index i32) (param $arg i32) (result i32)
     (call_indirect $indirect_function_table (type $ft1)
       (local.get $arg)
@@ -69,7 +76,7 @@
     )
     (local.set $k)
 
-    ;; stash continaution aside
+    ;; stash continuation aside
     (table.set $conts (local.get $cont_index) (local.get $k))
 
     (i32.store (local.get $result_ptr) (global.get $fiber_result_t_yield))
