@@ -39,7 +39,7 @@ struct skynet_args {
   uint64_t result;
 };
 
-void* run_skynet(struct skynet_args *args) {
+static void* run_skynet(struct skynet_args *args) {
   result_slot = skynet(args->level, args->num);
   return NULL;
 }
