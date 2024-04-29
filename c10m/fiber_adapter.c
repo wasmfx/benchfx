@@ -1,4 +1,4 @@
-// Fiber-based implementation of the primitive operations.
+// fiber.h-based generic implementation of the primitive operations.
 
 #include <stdlib.h>
 #include <stdint.h>

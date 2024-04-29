@@ -1,4 +1,4 @@
-// Asyncify fiber-based implementation of the abstract state operations.
+// fiber.h-based generic implementation of the abstract state operations.
 
 #include <stdlib.h>
 #include <stdint.h>

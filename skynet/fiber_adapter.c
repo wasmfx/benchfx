@@ -1,3 +1,5 @@
+// fiber.h-based generic implementation of the abstract skynet operations.
+
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
