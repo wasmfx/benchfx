@@ -65,9 +65,6 @@ size_t sieve(uint32_t *primes, const size_t len) {
   return p;
 }
 
-
-
-
 int main(void) {
   fiber_setup();
   const size_t primes_len = sizeof(reference) / sizeof(uint32_t);
