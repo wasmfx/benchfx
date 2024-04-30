@@ -466,8 +466,9 @@ class Wasmtime:
 
 class Hyperfine:
     @staticmethod
+    # `commands` contains tuples `(shell_command, desc)`, where `desc` is a human-readable description
     def run(
-        shell_commands: List[str],
+        commands: List[Tuple[str, str]],
         print_stdout=False,
         warmup_count=3,
         json_export_path=None,
@@ -475,7 +476,17 @@ class Hyperfine:
         args = ["hyperfine", f"--warmup={warmup_count}"]
         if json_export_path:
             args += [f"--export-json={json_export_path}"]
-        result = runCheck(args + shell_commands)
+
+        shell_commands = []
+        command_names = []
+        for c in commands:
+            command_names.append("--command-name")
+            command_names.append(c[1])
+            shell_commands.append(c[0])
+
+        logMsg("Hyperfine will compare shell commands:\n" + "\n".join(shell_commands))
+
+        result = runCheck(args + command_names + shell_commands)
 
         if print_stdout:
             global logLevel
@@ -836,7 +847,7 @@ class SubcommandRun:
                 f"Found benchmark suite with non-existing path {suite_path}",
             )
 
-            benchmark_commands = []
+            benchmark_commands: List[Tuple[str, str]] = []
             for b in suite.benchmarks:
                 benchmark_filters = cli_args.filter
                 if benchmark_filters and not b.matchesAnyFilter(
@@ -851,18 +862,17 @@ class SubcommandRun:
                 benchmark_output_dir.mkdir(parents=True, exist_ok=True)
 
                 # create .wasm file for each benchmark
-                benchmark_commands.append(
-                    b.prepare(
-                        suite,
-                        benchmark_output_dir,
-                        configuration,
-                        mimalloc=mimalloc,
-                        wasi_sdk=wasi_sdk,
-                        reference_interpreter=interpreter,
-                        binaryen=binaryen,
-                        wasmtime=wasmtime,
-                    )
+                command = b.prepare(
+                    suite,
+                    benchmark_output_dir,
+                    configuration,
+                    mimalloc=mimalloc,
+                    wasi_sdk=wasi_sdk,
+                    reference_interpreter=interpreter,
+                    binaryen=binaryen,
+                    wasmtime=wasmtime,
                 )
+                benchmark_commands.append((command, b.name))
 
             if benchmark_commands:
                 suite_shell_commands[suite.path] = benchmark_commands
@@ -872,7 +882,7 @@ class SubcommandRun:
         for suite_path, benchmark_commands in suite_shell_commands.items():
             if cli_args.prepare_only:
                 print(f"Commands for suite {suite_path}:")
-                print("\n".join(benchmark_commands))
+                print("\n".join(map(lambda t: t[0], benchmark_commands)))
             else:
                 Hyperfine.run(benchmark_commands, print_stdout=True)
 
@@ -947,7 +957,7 @@ class SubcommandCompareRevs:
                 f"Found benchmark suite with non-existing path {suite_path}",
             )
 
-            benchmark_pairs: List[Tuple[Benchmark, List[str], Path]] = []
+            benchmark_pairs: List[Tuple[Benchmark, List[Tuple[str,str]], Path]] = []
             for b in suite.benchmarks:
                 benchmark_filters = cli_args.filter
                 if benchmark_filters and not b.matchesAnyFilter(
@@ -986,7 +996,13 @@ class SubcommandCompareRevs:
                 )
                 json_path = benchmark_output_dir / "results.json"
 
-                benchmark_pairs.append((b, [command1, command2], json_path))
+                benchmark_pairs.append(
+                    (
+                        b,
+                        [(command1, b.name + " rev1"), (command2, b.name + " rev2")],
+                        json_path,
+                    )
+                )
 
             if benchmark_pairs:
                 suite_files[suite_path] = benchmark_pairs
@@ -995,7 +1011,7 @@ class SubcommandCompareRevs:
             for suite_path, benchmark_pairs in suite_files.items():
                 for bench, commands, json_path in benchmark_pairs:
                     print(f"Commands for suite {suite_path}, benchmark {bench.name}:")
-                    print("\n".join(commands))
+                    print("\n".join(map(lambda t: t[0], commands)))
         else:
             # Perform actual benchmarking in each suite:
             for benchmark_pairs in suite_files.values():
