@@ -24,7 +24,7 @@ static size_t cont_table_capacity = INITIAL_TABLE_CAPACITY;
 static size_t cont_table_unused_size = INITIAL_TABLE_CAPACITY;
 
 // This is a stack of indices into `$conts` that we have previously used, but
-// subsequently freed. Allocated as part of `fiber_setup`. Invariant: Once
+// subsequently freed. Allocated as part of `fiber_init`. Invariant: Once
 // allocated, the capacity of the `free_list` (i.e., the number of `size_t`
 // values we allocate memory for) is the same as `cont_table_capacity`.
 static size_t* free_list = NULL;
@@ -113,11 +113,11 @@ void* fiber_yield(void *arg) {
   return wasmfx_suspend(arg);
 }
 
-__wasm_export("fiber_setup")
-void fiber_setup() {
+__wasm_export("fiber_init")
+void fiber_init() {
   free_list = malloc(INITIAL_TABLE_CAPACITY * sizeof(size_t));
 }
 
-__wasm_export("fiber_teardown") void fiber_teardown() {
+__wasm_export("fiber_finalize") void fiber_finalize() {
   free(free_list);
 }

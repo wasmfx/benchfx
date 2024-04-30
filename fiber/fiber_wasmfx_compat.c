@@ -4,5 +4,5 @@
 
 // When compiling the existing _wasmfx benchmarks, the setup
 // and teardown functions are not required to do anything.
-void fiber_setup() {}
-void fiber_teardown() {}
+void fiber_init() {}
+void fiber_finalize() {}

@@ -88,8 +88,8 @@ uint32_t async_wl(void) {
 }
 
 int main(void) {
-  fiber_setup();
+  fiber_init();
   int result = verify(async_wl(), reference);
-  fiber_teardown();
+  fiber_finalize();
   return result;
 }

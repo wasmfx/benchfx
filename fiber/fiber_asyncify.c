@@ -177,9 +177,9 @@ void* fiber_resume(fiber_t fiber, void *arg, fiber_result_t *result) {
 
 
 // Noop in this implementation.
-__wasm_export("fiber_setup")
-void fiber_setup() {}
+__wasm_export("fiber_init")
+void fiber_init() {}
 
 // Noop in this implementation.
-__wasm_export("fiber_teardown")
-void fiber_teardown() {}
+__wasm_export("fiber_finalize")
+void fiber_finalize() {}

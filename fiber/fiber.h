@@ -28,10 +28,10 @@ void* fiber_resume(fiber_t fiber, void *arg, fiber_result_t *result);
 
 /** Initializes fiber support. Must be called exactly once before using any of
     the other fiber_* functions. **/
-void fiber_setup();
+void fiber_init();
 
 /** Un-initializes fiber support. If fiber_initialize has ever beed called, then
     fiber_uninitialize must called prior to exiting the program. **/
-void fiber_teardown();
+void fiber_finalize();
 
 #endif
