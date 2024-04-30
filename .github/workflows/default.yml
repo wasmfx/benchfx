@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+    - main
+
+  push:
+    branches:
+      - main
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # Quick health check on the benchmark harness itself
+  check-harness:
+    name: Harness formatting and typing
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+    - run: pip3 install pyright black
+    - run: pyright harness.py
+    - run: black --check harness.py
+
+
+
+  run-benchmarks:
+    name: Run benchmarks
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+    - run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    - run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    - run: cargo install hyperfine
+    - run: sudo apt-get install cmake ocaml dune menhir libmenhir-ocaml-dev
+    - run: ./harness.py -v setup
+    - run: ./harness.py -v run
