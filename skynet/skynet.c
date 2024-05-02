@@ -6,6 +6,7 @@
 #include <inttypes.h>
 
 #include <wasm.h>
+#include <fiber.h>
 
 #include "parameters.h"
 
@@ -35,9 +36,11 @@ uint64_t skynet(uint32_t level, uint64_t num) {
   }
 }
 
-
 int main(void) {
+  fiber_init();
   int64_t my_number = skynet(6, 0);
-  //printf("%" PRIu64 "\n", my_number);
-  return verify(my_number, reference);
+  // printf("%" PRIu64 "\n", my_number);
+  int result = verify(my_number, reference);
+  fiber_finalize();
+  return result;
 }

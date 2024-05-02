@@ -1,4 +1,4 @@
-// Asyncify implementation of the abstract sieve operations.
+// fiber.h-based generic implementation of the abstract sieve operations.
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>

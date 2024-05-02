@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <wasm.h>
+#include <fiber.h>
 
 #include "parameters.h"
 
@@ -25,6 +26,9 @@ int32_t count(const int32_t limit) {
 }
 
 int main(void) {
+  fiber_init();
   int32_t my_count = handle_count(0, count_to);
-  return verify(my_count, count_to);
+  int result = verify(my_count, count_to);
+  fiber_finalize();
+  return result;
 }

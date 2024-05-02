@@ -6,6 +6,7 @@
 //#include <inttypes.h>
 
 #include <wasm.h>
+#include <fiber.h>
 
 #include "parameters.h"
 
@@ -24,7 +25,6 @@ uint32_t resume_async_worker(uint32_t, uint32_t);
 extern
 __wasm_import("impl", "free_async_worker")
 void free_async_worker(uint32_t);
-
 
 static
 __noinline
@@ -88,6 +88,8 @@ uint32_t async_wl(void) {
 }
 
 int main(void) {
-  return verify(async_wl(), reference);
+  fiber_init();
+  int result = verify(async_wl(), reference);
+  fiber_finalize();
+  return result;
 }
-

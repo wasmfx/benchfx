@@ -17,4 +17,3 @@ run: example.wasm
 .PHONY: clean
 clean:
 	rm -f example.wasm example.pre.wasm
-

@@ -6,28 +6,28 @@ BENCHMARK_SUITES: List[Suite] = [
         path="c10m",
         benchmarks=[
             MakeWasm(file=wasm)
-            for wasm in ["c10m_bespoke", "c10m_asyncify", "c10m_wasmfx"]
+            for wasm in ["c10m_bespoke", "c10m_asyncify", "c10m_wasmfx", "c10m_wasmfx_fiber"]
         ],
     ),
     Suite(
         path="sieve",
         benchmarks=[
             MakeWasm(file=wasm)
-            for wasm in ["sieve_bespoke", "sieve_asyncify", "sieve_wasmfx"]
+            for wasm in ["sieve_bespoke", "sieve_asyncify", "sieve_wasmfx",  "sieve_wasmfx_fiber"]
         ],
     ),
     Suite(
         path="skynet",
         benchmarks=[
             MakeWasm(file=wasm)
-            for wasm in ["skynet_bespoke", "skynet_asyncify", "skynet_wasmfx"]
+            for wasm in ["skynet_bespoke", "skynet_asyncify", "skynet_wasmfx", "skynet_wasmfx_fiber"]
         ],
     ),
     Suite(
         path="state",
         benchmarks=[
             MakeWasm(file=wasm)
-            for wasm in ["state_bespoke", "state_asyncify", "state_wasmfx"]
+            for wasm in ["state_bespoke", "state_asyncify", "state_wasmfx", "state_wasmfx_fiber"]
         ],
     ),
     Suite(path="micro/suspend_resume", benchmarks=[Wat("bench", invoke="run")]),
