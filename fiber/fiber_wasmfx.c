@@ -14,6 +14,7 @@ typedef uintptr_t cont_table_index_t;
 // Initial size of the `$conts` table. Keep this value in sync with the
 // corresponding (table ...) definition.
 static const size_t INITIAL_TABLE_CAPACITY = 1024;
+static const size_t CONT_SHADOW_STACK_SIZE = 4096;
 
 // The current capacity of the `$conts` table.
 static size_t cont_table_capacity = INITIAL_TABLE_CAPACITY;
@@ -49,6 +50,17 @@ extern
 __wasm_import("fiber_wasmfx_imports", "wasmfx_suspend")
 void* wasmfx_suspend(void *arg);
 
+extern
+__wasm_import("fiber_wasmfx_imports", "wasmfx_init_cont_shadow_stack")
+void wasmfx_init_cont_shadow_stack(cont_table_index_t cont_index, void* sstack_bottom, void* sstack_top);
+
+extern
+__wasm_import("fiber_wasmfx_imports", "wasmfx_uninit_cont_shadow_stack")
+void wasmfx_uninit_cont_shadow_stack(cont_table_index_t cont_index);
+
+extern
+__wasm_import("fiber_wasmfx_imports", "wasmfx_get_cont_shadow_stack_bottom")
+void* wasmfx_get_cont_shadow_stack_bottom(cont_table_index_t cont_index);
 
  cont_table_index_t wasmfx_acquire_table_index() {
   uintptr_t table_index;
@@ -76,10 +88,16 @@ void* wasmfx_suspend(void *arg);
       table_index = cont_table_capacity;
       cont_table_capacity = new_cont_table_capacity;
   }
+  void* shadow_stack_bottom = malloc(CONT_SHADOW_STACK_SIZE);
+  void* shadow_stack_usable_top = shadow_stack_bottom + CONT_SHADOW_STACK_SIZE - 0x20;
+  wasmfx_init_cont_shadow_stack(table_index, shadow_stack_bottom, shadow_stack_usable_top);
   return table_index;
 }
 
 void wasmfx_release_table_index(cont_table_index_t table_index) {
+  void* shadow_stack_bottom = wasmfx_get_cont_shadow_stack_bottom(table_index);
+  free(shadow_stack_bottom);
+  wasmfx_uninit_cont_shadow_stack(table_index);
   free_list[free_list_size] = table_index;
   free_list_size++;
 }

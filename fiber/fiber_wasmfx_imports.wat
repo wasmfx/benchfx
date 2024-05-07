@@ -10,6 +10,11 @@
   ;; This is created by clang to translate function pointers.
   (import "benchmark" "__indirect_function_table" (table $indirect_function_table 0 funcref))
 
+  (import "benchmark" "__exported_shadow_stack_pointer" (global $sstack_ptr (mut i32)))
+
+    ;; 4 bytes per continuation/entry in $conts table
+  (memory $sstack_bottoms 4096) ;; first address/bottom of continuation's stack
+  (memory $sstack_ptrs 4096) ;; current address of continuation's stack
 
   ;; Keep the initial size of this table in sync with INITIAL_TABLE_CAPACITY in
   ;; .c file.
@@ -22,11 +27,50 @@
   ;; Must keep in sync.
   (global $fiber_result_t_ok i32 (i32.const 0))
   (global $fiber_result_t_yield i32 (i32.const 1))
+  (global $sstack_size i32 (i32.const 4096))
 
 
   (func $grow_cont_table (export "wasmfx_grow_cont_table") (param $capacity_delta i32)
     (table.grow $conts (ref.null $ct1) (local.get $capacity_delta))
     (drop)
+    (i32.mul (i32.const 4) (local.get $capacity_delta))
+    (memory.grow $sstack_bottoms)
+    (drop)
+    (i32.mul (i32.const 4) (local.get $capacity_delta))
+    (memory.grow $sstack_ptrs)
+    (drop)
+  )
+
+  (func $wasmfx_init_cont_shadow_stack (export "wasmfx_init_cont_shadow_stack")
+      (param $cont_index i32) (param $bos i32) (param $tos i32)
+    (i32.store $sstack_bottoms
+      (i32.mul (i32.const 4) (local.get $cont_index))
+      (local.get $bos)
+    )
+    (i32.store $sstack_ptrs
+      (i32.mul (i32.const 4) (local.get $cont_index))
+      (local.get $tos)
+    )
+  )
+
+  (func $wasmfx_uninit_cont_shadow_stack (export "wasmfx_uninit_cont_shadow_stack")
+      (param $cont_index i32)
+    (i32.store $sstack_bottoms
+      (i32.mul (i32.const 4) (local.get $cont_index))
+      (i32.const -1)
+    )
+    (i32.store $sstack_ptrs
+      (i32.mul (i32.const 4) (local.get $cont_index))
+      (i32.const -1)
+    )
+  )
+
+  (func $wasmfx_get_cont_shadow_stack_bottom (export "wasmfx_get_cont_shadow_stack_bottom")
+      (param $cont_index i32)
+      (result i32)
+    (i32.load $sstack_bottoms
+      (i32.mul (i32.const 4) (local.get $cont_index))
+    )
   )
 
   ;; This function is the entry point of all of our continuations.
@@ -63,6 +107,14 @@
     (param $result_ptr i32)
     (result i32)
     (local $k (ref $ct1))
+    (local $old_shadow_sp i32)
+
+    ;;(call $get_shadow_sp)
+    (local.set $old_shadow_sp (global.get $sstack_ptr))
+
+
+    (i32.load $sstack_ptrs (i32.mul (i32.const 4) (local.get $cont_index)))
+    (global.set $sstack_ptr)
 
 
     (block $handler (result i32 (ref $ct1) )
@@ -72,6 +124,7 @@
       (table.get $conts (local.get $cont_index))
       (resume $ct1 (tag $yield $handler))
       (i32.store (local.get $result_ptr) (global.get $fiber_result_t_ok))
+      (global.set $sstack_ptr (local.get $old_shadow_sp))
       (return) ;; returns the value put on stack by resume
     )
     (local.set $k)
@@ -80,6 +133,13 @@
     (table.set $conts (local.get $cont_index) (local.get $k))
 
     (i32.store (local.get $result_ptr) (global.get $fiber_result_t_yield))
+
+    (i32.store $sstack_ptrs
+      (i32.mul (i32.const 4) (local.get $cont_index))
+      (global.get $sstack_ptr)
+    )
+    (global.set $sstack_ptr (local.get $old_shadow_sp))
+
     ;; return suspend payload
     (return)
   )
