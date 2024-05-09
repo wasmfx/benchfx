@@ -5,25 +5,27 @@
 #include <stdint.h>
 //#include <inttypes.h>
 
-#include <wasm.h>
+#include <wasm_utils.h>
 #include <fiber.h>
 
 #include "parameters.h"
 
+#define __noinline __attribute__((noinline))
+
 extern
-__wasm_import("impl", "async_worker_yield")
+__wasm_import__("impl", "async_worker_yield")
 uint32_t async_worker_yield(uint32_t);
 
 extern
-__wasm_import("impl", "alloc_async_worker")
+__wasm_import__("impl", "alloc_async_worker")
 void alloc_async_worker(uint32_t);
 
 extern
-__wasm_import("impl", "resume_async_worker")
+__wasm_import__("impl", "resume_async_worker")
 uint32_t resume_async_worker(uint32_t, uint32_t);
 
 extern
-__wasm_import("impl", "free_async_worker")
+__wasm_import__("impl", "free_async_worker")
 void free_async_worker(uint32_t);
 
 static
@@ -51,7 +53,7 @@ void stack_use(long totalkb) {
 }
 
 __noinline
-__wasm_export("async_worker")
+__wasm_export__("async_worker")
 void* async_worker(void *arg) {
   uint32_t kb = async_worker_yield((uint32_t)arg);
   stack_use(kb);
