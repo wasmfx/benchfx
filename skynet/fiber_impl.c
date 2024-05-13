@@ -16,7 +16,7 @@
 static uint64_t result_slot;
 
 __noinline
-__wasm_export__("yield")
+__wasm_export("yield")
 void yield(uint64_t value) {
   result_slot = value;
   fiber_yield(NULL);
@@ -30,7 +30,7 @@ void yield(uint64_t value) {
 
 extern
 __noinline
-__wasm_import__("benchmark", "skynet")
+__wasm_import("benchmark", "skynet")
 uint64_t skynet(uint32_t, uint64_t);
 
 struct skynet_args {
@@ -45,7 +45,7 @@ static void* run_skynet(struct skynet_args *args) {
 }
 
 __noinline
-__wasm_export__("handle")
+__wasm_export("handle")
 uint64_t handle(uint32_t level, uint64_t num) {
   uint64_t result;
   fiber_result_t status;

@@ -15,13 +15,13 @@
 typedef void* filter_t;
 
 extern
-__wasm_import__("impl", "filter_spawn")
+__wasm_import("impl", "filter_spawn")
 filter_t filter_spawn(uint32_t prime);
 extern
-__wasm_import__("impl", "filter_send")
+__wasm_import("impl", "filter_send")
 bool filter_send(filter_t receiver, uint32_t candidate);
 extern
-__wasm_import__("impl", "filter_shutdown")
+__wasm_import("impl", "filter_shutdown")
 void filter_shutdown(filter_t receiver);
 
 /* __noinline */

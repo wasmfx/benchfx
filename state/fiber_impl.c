@@ -8,7 +8,7 @@
 #include "../wasm_utils.h"
 
 extern
-__wasm_import__("benchmark", "count")
+__wasm_import("benchmark", "count")
 int32_t count(const int32_t);
 
 typedef struct cmd {
@@ -17,21 +17,21 @@ typedef struct cmd {
 } cmd_t;
 
 __noinline
-__wasm_export__("state_get")
+__wasm_export("state_get")
 int32_t state_get(void) {
   cmd_t get = { GET, 0 };
   return (int32_t)((intptr_t)fiber_yield(&get));
 }
 
 __noinline
-__wasm_export__("state_put")
+__wasm_export("state_put")
 void state_put(int32_t value) {
   cmd_t put = { PUT, value };
   (void)fiber_yield(&put);
 }
 
 __noinline
-__wasm_export__("handle_count")
+__wasm_export("handle_count")
 int32_t handle_count(int32_t value, const int32_t limit) {
   fiber_result_t status;
   fiber_t fiber = fiber_alloc((fiber_entry_point_t)count);

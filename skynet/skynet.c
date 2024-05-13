@@ -11,15 +11,15 @@
 #include "parameters.h"
 
 extern
-__wasm_import__("impl", "yield")
+__wasm_import("impl", "yield")
 void yield(uint64_t);
 
 extern
-__wasm_import__("impl", "handle")
+__wasm_import("impl", "handle")
 uint64_t handle(uint32_t, uint64_t);
 
 __noinline
-__wasm_export__("skynet")
+__wasm_export("skynet")
 uint64_t skynet(uint32_t level, uint64_t num) {
   if (level == 0) {
     yield(num);
