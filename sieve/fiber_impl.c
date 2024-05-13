@@ -5,9 +5,7 @@
 #include <inttypes.h>
 
 #include <fiber.h>
-#include <wasm_utils.h>
-
-#define __noinline __attribute__((noinline))
+#include "../wasm_utils.h"
 
 static void* filter(void *prime) {
   uint32_t my_prime = *((uint32_t*)prime);

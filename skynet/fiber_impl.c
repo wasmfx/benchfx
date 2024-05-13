@@ -8,9 +8,7 @@
 #include <fiber.h>
 
 //#include <wasi-io.h>
-#include <wasm_utils.h>
-
-#define __noinline __attribute__((noinline))
+#include "../wasm_utils.h"
 
 // We cannot fit the result into a void* on wasm32; asyncify appears
 // to be a bit bittle when passing stack addresses. So instead we use

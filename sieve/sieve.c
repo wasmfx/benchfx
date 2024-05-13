@@ -6,12 +6,11 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-#include <wasm_utils.h>
+
 #include <fiber.h>
 
+#include "../wasm_utils.h"
 #include "parameters.h"
-
-#define __noinline __attribute__((noinline))
 
 typedef void* filter_t;
 

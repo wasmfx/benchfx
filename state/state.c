@@ -1,12 +1,11 @@
 // An abstract effectful implementation of stateful counting.
 
 #include <stdint.h>
-#include <wasm_utils.h>
 #include <fiber.h>
 
+#include "../wasm_utils.h"
 #include "parameters.h"
 
-#define __noinline __attribute__((noinline))
 
 extern
 __wasm_import__("impl", "state_get")

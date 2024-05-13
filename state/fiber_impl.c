@@ -4,9 +4,8 @@
 #include <stdint.h>
 
 #include <fiber.h>
-#include <wasm_utils.h>
 
-#define __noinline __attribute__((noinline))
+#include "../wasm_utils.h"
 
 extern
 __wasm_import__("benchmark", "count")

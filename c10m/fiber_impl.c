@@ -3,11 +3,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <fiber.h>
-#include <wasm_utils.h>
 
 #include "parameters.h"
-
-#define __noinline __attribute__((noinline))
+#include "../wasm_utils.h"
 
 static fiber_t store[active_conn];
 
