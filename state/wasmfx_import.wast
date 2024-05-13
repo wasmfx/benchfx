@@ -12,7 +12,7 @@
   (type $ft (func (result i32)))
   (type $kt (cont $ft))
 
-  (func $count (import "benchmark" "count") (param i32) (result i32))
+  (func $count (import "main" "count") (param i32) (result i32))
   (elem declare func $count)
 
   (tag $get (result i32))

@@ -4,7 +4,7 @@
   (type $filter  (func (param i32) (result i32)))
   (type $cfilter (cont $filter))
 
-  ;; (func $filter (import "benchmark" "filter") (param i32) (result i32))
+  ;; (func $filter (import "main" "filter") (param i32) (result i32))
 
   (tag $init  (result i32))
   (tag $yield (param i32) (result i32))

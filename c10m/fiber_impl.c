@@ -10,7 +10,7 @@
 static fiber_t store[active_conn];
 
 extern
-__wasm_import("benchmark", "async_worker")
+__wasm_import("main", "async_worker")
 void* async_worker(void*);
 
 __noinline

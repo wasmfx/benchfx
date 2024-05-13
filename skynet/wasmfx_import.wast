@@ -6,7 +6,7 @@
   (type $fyield (func (result i64)))
   (type $cyield (cont $fyield))
 
-  (func $skynet (import "benchmark" "skynet") (param i32 i64) (result i64))
+  (func $skynet (import "main" "skynet") (param i32 i64) (result i64))
   (elem declare func $skynet)
 
   (tag $yield (param i64))

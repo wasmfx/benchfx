@@ -30,7 +30,7 @@ void yield(uint64_t value) {
 
 extern
 __noinline
-__wasm_import("benchmark", "skynet")
+__wasm_import("main", "skynet")
 uint64_t skynet(uint32_t, uint64_t);
 
 struct skynet_args {
