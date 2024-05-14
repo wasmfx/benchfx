@@ -5,7 +5,7 @@
 #include <fiber.h>
 
 #include "parameters.h"
-#include "../wasm_utils.h"
+#include "../lib/inc/wasm_utils.h"
 
 static fiber_t store[active_conn];
 

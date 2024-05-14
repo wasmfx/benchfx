@@ -5,7 +5,7 @@
 
 #include <fiber.h>
 
-#include "../wasm_utils.h"
+#include "../lib/inc/wasm_utils.h"
 
 extern
 __wasm_import("main", "count")

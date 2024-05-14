@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <fiber.h>
 
-#include "../wasm_utils.h"
+#include "../lib/inc/wasm_utils.h"
 #include "parameters.h"
 
 
