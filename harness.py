@@ -131,13 +131,20 @@ class MakeWasm(Benchmark):
         extension
     invoke : Optional[str]
         If given, name of function in final module to invoke
+    flags: Optional[List[Tuple[str,str]]]
+       List of extra flags and their values to pass to make
     """
 
     def __init__(
-        self, file: str, name: Optional[str] = None, invoke: Optional[str] = None
+        self,
+        file: str,
+        name: Optional[str] = None,
+        invoke: Optional[str] = None,
+        flags: Optional[List[Tuple[str, str]]] = None,
     ):
         self.file = file
         self.invoke = invoke
+        self.flags = flags or []
         super().__init__(name or file)
 
     def prepare(
@@ -160,6 +167,7 @@ class MakeWasm(Benchmark):
         wasm_merge = binaryen.wasmMergeExecutablePath().absolute()
         wasm_opt = binaryen.wasmOptExecutablePath().absolute()
         runCheck("make clean", cwd=suite_path)
+        flag_args = list(map(lambda x: f"{x[0]}={x[1]}", self.flags))
         runCheck(
             ["make", str(wasm_make_target)]
             + [
@@ -167,7 +175,8 @@ class MakeWasm(Benchmark):
                 f"WASM_INTERP={interpreter}",
                 f"WASM_MERGE={wasm_merge}",
                 f"WASM_OPT={wasm_opt}",
-            ],
+            ]
+            + flag_args,
             cwd=suite_path,
         )
 
@@ -957,7 +966,7 @@ class SubcommandCompareRevs:
                 f"Found benchmark suite with non-existing path {suite_path}",
             )
 
-            benchmark_pairs: List[Tuple[Benchmark, List[Tuple[str,str]], Path]] = []
+            benchmark_pairs: List[Tuple[Benchmark, List[Tuple[str, str]], Path]] = []
             for b in suite.benchmarks:
                 benchmark_filters = cli_args.filter
                 if benchmark_filters and not b.matchesAnyFilter(
