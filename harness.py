@@ -131,13 +131,20 @@ class MakeWasm(Benchmark):
         extension
     invoke : Optional[str]
         If given, name of function in final module to invoke
+    flags: Optional[List[Tuple[str,str]]]
+       List of extra flags and their values to pass to make
     """
 
     def __init__(
-        self, file: str, name: Optional[str] = None, invoke: Optional[str] = None
+        self,
+        file: str,
+        name: Optional[str] = None,
+        invoke: Optional[str] = None,
+        flags: Optional[List[Tuple[str, str]]] = None,
     ):
         self.file = file
         self.invoke = invoke
+        self.flags = flags or []
         super().__init__(name or file)
 
     def prepare(
@@ -160,6 +167,7 @@ class MakeWasm(Benchmark):
         wasm_merge = binaryen.wasmMergeExecutablePath().absolute()
         wasm_opt = binaryen.wasmOptExecutablePath().absolute()
         runCheck("make clean", cwd=suite_path)
+        flag_args = list(map(lambda x: f"{x[0]}={x[1]}", self.flags))
         runCheck(
             ["make", str(wasm_make_target)]
             + [
@@ -167,14 +175,19 @@ class MakeWasm(Benchmark):
                 f"WASM_INTERP={interpreter}",
                 f"WASM_MERGE={wasm_merge}",
                 f"WASM_OPT={wasm_opt}",
-            ],
+            ]
+            + flag_args,
             cwd=suite_path,
         )
 
         wasmtime.compileWasm(suite_path / wasm_make_target, output_dir / cwasm_file)
 
         run_command = wasmtime.shellCommandCwasmRun(output_dir / cwasm_file)
-        return mimalloc.addToShellCommmand(run_command)
+        return (
+            mimalloc.addToShellCommmand(run_command)
+            if config.use_mimalloc
+            else run_command
+        )
 
 
 class Wat(Benchmark):
@@ -214,7 +227,11 @@ class Wat(Benchmark):
             cwasm_path, invoke_function=self.invoke
         )
 
-        return mimalloc.addToShellCommmand(run_command)
+        return (
+            mimalloc.addToShellCommmand(run_command)
+            if config.use_mimalloc
+            else run_command
+        )
 
 
 def run(cmd: str | List[str], cwd=None) -> subprocess.CompletedProcess:
@@ -458,8 +475,9 @@ class Wasmtime:
 
 class Hyperfine:
     @staticmethod
+    # `commands` contains tuples `(shell_command, desc)`, where `desc` is a human-readable description
     def run(
-        shell_commands: List[str],
+        commands: List[Tuple[str, str]],
         print_stdout=False,
         warmup_count=3,
         json_export_path=None,
@@ -467,7 +485,17 @@ class Hyperfine:
         args = ["hyperfine", f"--warmup={warmup_count}"]
         if json_export_path:
             args += [f"--export-json={json_export_path}"]
-        result = runCheck(args + shell_commands)
+
+        shell_commands = []
+        command_names = []
+        for c in commands:
+            command_names.append("--command-name")
+            command_names.append(c[1])
+            shell_commands.append(c[0])
+
+        logMsg("Hyperfine will compare shell commands:\n" + "\n".join(shell_commands))
+
+        result = runCheck(args + command_names + shell_commands)
 
         if print_stdout:
             global logLevel
@@ -650,6 +678,28 @@ def prepareCommonTools() -> Tuple[WasiSdk, Mimalloc, ReferenceInterpreter, Binar
     return (wasi_sdk, mimalloc, interpreter, binaryen)
 
 
+def addSharedArgsToSubparser(parser):
+    parser.add_argument(
+        "--filter",
+        help="Only run benchmarks that match this glob pattern",
+        action="append",
+    )
+    parser.add_argument(
+        "--allow-dirty",
+        help="Allows the benchfx repo to be dirty when running benchmarks",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--prepare-only",
+        help="""Perform all preparation steps (for external tools and benchmarks
+        themselves), but do not actually run benchmarks. Instead, print the shell
+        commands that would be compare against each other.""",
+        action="store_true",
+        default=False,
+    )
+
+
 def addRevisionSpecificArgsToSubparser(
     subparser,
     revision_qualifier: Optional[str] = None,
@@ -712,7 +762,7 @@ def checkBenchFxRepoClean():
 
 def checkDependenciesPresent(need_second_wasmtime_repo):
     def checkExternalToolsPresent():
-        tools = ["make", "cmake", "dune", "hyperfine"]
+        tools = ["make", "cmake", "dune", "hyperfine", "cargo"]
         for tool in tools:
             runCheck(
                 f"command -v {tool}",
@@ -767,17 +817,6 @@ class SubcommandRun:
         parser = subparsers.add_parser("run", help="runs benchmarks (used by default)")
 
         parser.add_argument(
-            "--filter",
-            help="Only run benchmarks that match this glob pattern",
-            action="append",
-        )
-        parser.add_argument(
-            "--allow-dirty",
-            help="Allows the benchfx repo to be dirty when running benchmarks",
-            action="store_true",
-            default=False,
-        )
-        parser.add_argument(
             "wasmtime_rev",
             help="Instead of config.WASMTIME_REVISION, use this wasmtime revision instead (optional)",
             action="store",
@@ -785,6 +824,7 @@ class SubcommandRun:
             nargs="?",
         )
 
+        addSharedArgsToSubparser(parser)
         addRevisionSpecificArgsToSubparser(parser)
 
     def execute(self, cli_args: argparse.Namespace):
@@ -816,7 +856,7 @@ class SubcommandRun:
                 f"Found benchmark suite with non-existing path {suite_path}",
             )
 
-            benchmark_commands = []
+            benchmark_commands: List[Tuple[str, str]] = []
             for b in suite.benchmarks:
                 benchmark_filters = cli_args.filter
                 if benchmark_filters and not b.matchesAnyFilter(
@@ -831,26 +871,29 @@ class SubcommandRun:
                 benchmark_output_dir.mkdir(parents=True, exist_ok=True)
 
                 # create .wasm file for each benchmark
-                benchmark_commands.append(
-                    b.prepare(
-                        suite,
-                        benchmark_output_dir,
-                        configuration,
-                        mimalloc=mimalloc,
-                        wasi_sdk=wasi_sdk,
-                        reference_interpreter=interpreter,
-                        binaryen=binaryen,
-                        wasmtime=wasmtime,
-                    )
+                command = b.prepare(
+                    suite,
+                    benchmark_output_dir,
+                    configuration,
+                    mimalloc=mimalloc,
+                    wasi_sdk=wasi_sdk,
+                    reference_interpreter=interpreter,
+                    binaryen=binaryen,
+                    wasmtime=wasmtime,
                 )
+                benchmark_commands.append((command, b.name))
 
             if benchmark_commands:
                 suite_shell_commands[suite.path] = benchmark_commands
             #
 
         # Perform actual benchmarking in each suite:
-        for _suite_path, benchmark_commands in suite_shell_commands.items():
-            Hyperfine.run(benchmark_commands, print_stdout=True)
+        for suite_path, benchmark_commands in suite_shell_commands.items():
+            if cli_args.prepare_only:
+                print(f"Commands for suite {suite_path}:")
+                print("\n".join(map(lambda t: t[0], benchmark_commands)))
+            else:
+                Hyperfine.run(benchmark_commands, print_stdout=True)
 
 
 class SubcommandCompareRevs:
@@ -868,23 +911,13 @@ class SubcommandCompareRevs:
             first revision of wasmtime against second one""",
         )
         parser.add_argument(
-            "--filter",
-            help="Only run benchmarks that match this glob pattern",
-            action="append",
-        )
-        parser.add_argument(
-            "--allow-dirty",
-            help="Allows the benchfx repo to be dirty when running benchmarks",
-            action="store_true",
-            default=False,
-        )
-        parser.add_argument(
             "revision1", help="First Wasmtime revision to use in the comparison"
         )
         parser.add_argument(
             "revision2", help="Second Wasmtime revision to use in the comparison"
         )
 
+        addSharedArgsToSubparser(parser)
         addRevisionSpecificArgsToSubparser(
             parser, revision_qualifier="rev1", desc="revision 1"
         )
@@ -933,7 +966,7 @@ class SubcommandCompareRevs:
                 f"Found benchmark suite with non-existing path {suite_path}",
             )
 
-            benchmark_pairs: List[Tuple[Benchmark, List[str], Path]] = []
+            benchmark_pairs: List[Tuple[Benchmark, List[Tuple[str, str]], Path]] = []
             for b in suite.benchmarks:
                 benchmark_filters = cli_args.filter
                 if benchmark_filters and not b.matchesAnyFilter(
@@ -972,28 +1005,40 @@ class SubcommandCompareRevs:
                 )
                 json_path = benchmark_output_dir / "results.json"
 
-                benchmark_pairs.append((b, [command1, command2], json_path))
+                benchmark_pairs.append(
+                    (
+                        b,
+                        [(command1, b.name + " rev1"), (command2, b.name + " rev2")],
+                        json_path,
+                    )
+                )
 
             if benchmark_pairs:
                 suite_files[suite_path] = benchmark_pairs
 
-        # Perform actual benchmarking in each suite:
-        for benchmark_pairs in suite_files.values():
-            for bench, commands, json_path in benchmark_pairs:
-                Hyperfine.run(commands, json_export_path=json_path)
+        if cli_args.prepare_only:
+            for suite_path, benchmark_pairs in suite_files.items():
+                for bench, commands, json_path in benchmark_pairs:
+                    print(f"Commands for suite {suite_path}, benchmark {bench.name}:")
+                    print("\n".join(map(lambda t: t[0], commands)))
+        else:
+            # Perform actual benchmarking in each suite:
+            for benchmark_pairs in suite_files.values():
+                for bench, commands, json_path in benchmark_pairs:
+                    Hyperfine.run(commands, json_export_path=json_path)
 
-        # Print results from each suite
-        print(
-            "Results: (for each benchmark, showing mean runtime in rev1 / mean runtime in rev2)"
-        )
-        for suite_path, benchmark_pairs in suite_files.items():
-            print(f"Suite: {suite_path}")
-            for bench, _, json_path in benchmark_pairs:
-                with open(json_path, "r") as f:
-                    results = json.load(f)["results"]
-                    rev1_mean = results[0]["mean"]
-                    rev2_mean = results[1]["mean"]
-                    print(f"{bench.name}: {rev1_mean / rev2_mean}")
+            # Print results from each suite
+            print(
+                "Results: (for each benchmark, showing mean runtime in rev1 / mean runtime in rev2)"
+            )
+            for suite_path, benchmark_pairs in suite_files.items():
+                print(f"Suite: {suite_path}")
+                for bench, _, json_path in benchmark_pairs:
+                    with open(json_path, "r") as f:
+                        results = json.load(f)["results"]
+                        rev1_mean = results[0]["mean"]
+                        rev2_mean = results[1]["mean"]
+                        print(f"{bench.name}: {rev1_mean / rev2_mean}")
 
 
 class SubcommandSetup:
@@ -1154,3 +1199,4 @@ if __name__ == "__main__":
     except HarnessError as e:
         print("Error: " + e.args[0])
         logProcessOutput(traceback.format_exc())
+        sys.exit(1)
