@@ -8,7 +8,7 @@
 #include <fiber.h>
 
 //#include <wasi-io.h>
-#include <wasm.h>
+#include "../lib/inc/wasm_utils.h"
 
 // We cannot fit the result into a void* on wasm32; asyncify appears
 // to be a bit bittle when passing stack addresses. So instead we use
@@ -30,7 +30,7 @@ void yield(uint64_t value) {
 
 extern
 __noinline
-__wasm_import("benchmark", "skynet")
+__wasm_import("main", "skynet")
 uint64_t skynet(uint32_t, uint64_t);
 
 struct skynet_args {

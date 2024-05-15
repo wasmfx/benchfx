@@ -4,10 +4,11 @@
 #include <stdint.h>
 
 #include <fiber.h>
-#include <wasm.h>
+
+#include "../lib/inc/wasm_utils.h"
 
 extern
-__wasm_import("benchmark", "count")
+__wasm_import("main", "count")
 int32_t count(const int32_t);
 
 typedef struct cmd {

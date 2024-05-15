@@ -3,14 +3,14 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <fiber.h>
-#include <wasm.h>
 
 #include "parameters.h"
+#include "../lib/inc/wasm_utils.h"
 
 static fiber_t store[active_conn];
 
 extern
-__wasm_import("benchmark", "async_worker")
+__wasm_import("main", "async_worker")
 void* async_worker(void*);
 
 __noinline

@@ -1,0 +1,3 @@
+[submodule "vendor/fiber-c"]
+	path = vendor/fiber-c
+	url = https://github.com/wasmfx/fiber-c

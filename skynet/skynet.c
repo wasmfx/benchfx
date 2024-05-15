@@ -5,9 +5,9 @@
 #include <stdint.h>
 #include <inttypes.h>
 
-#include <wasm.h>
 #include <fiber.h>
 
+#include "../lib/inc/wasm_utils.h"
 #include "parameters.h"
 
 extern
