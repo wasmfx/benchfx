@@ -369,7 +369,9 @@ class Config:
         for prop_name, parser in prop_parsers:
             qualified_attr_name = prefix + prop_name
             attr_val = getattr(cli_args, qualified_attr_name, None)
-            val = parser(qualified_attr_name, attr_val) if attr_val is not None else None
+            val = (
+                parser(qualified_attr_name, attr_val) if attr_val is not None else None
+            )
             setattr(config, prop_name, val)
 
         return config
