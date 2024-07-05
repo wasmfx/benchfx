@@ -328,7 +328,7 @@ class Config:
     """
 
     use_mimalloc: bool = True
-    json_export_path: Optional[str] = None
+    json_export_dir: Optional[str] = None
 
     # Wasmtime specific:
     wasmtime_cargo_build_args: Optional[List[str]] = None
@@ -359,7 +359,7 @@ class Config:
 
         prop_parsers = {
             ("use_mimalloc", parseYN),
-            ("json_export_path", identity),
+            ("json_export_dir", identity),
             ("wasmtime_release_build", parseYN),
             ("wasmtime_cargo_build_args", splitMultiArgumentString),
             ("wasmtime_compile_args", splitMultiArgumentString),
@@ -830,8 +830,8 @@ class SubcommandRun:
         )
 
         parser.add_argument(
-            "--json-export-path",
-            help="Export results to a json file with given path",
+            "--json-export-dir",
+            help="Directory where to create one results json file per suite that was benchmarked",
             action="store",
         )
 
@@ -900,6 +900,11 @@ class SubcommandRun:
 
         # Perform actual benchmarking in each suite:
         for suite_path, benchmark_commands in suite_shell_commands.items():
+            json_export_path = None
+            if configuration.json_export_dir is not None:
+                file_name = "_".join(Path(suite_path).parts) + ".json"
+                json_export_path = Path(configuration.json_export_dir) / Path(file_name)
+
             if cli_args.prepare_only:
                 print(f"Commands for suite {suite_path}:")
                 print("\n".join(map(lambda t: t[0], benchmark_commands)))
@@ -907,7 +912,7 @@ class SubcommandRun:
                 Hyperfine.run(
                     benchmark_commands,
                     print_stdout=True,
-                    json_export_path=configuration.json_export_path,
+                    json_export_path=json_export_path,
                 )
 
 
