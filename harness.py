@@ -328,6 +328,7 @@ class Config:
     """
 
     use_mimalloc: bool = True
+    json_export_path: Optional[str] = None
 
     # Wasmtime specific:
     wasmtime_cargo_build_args: Optional[List[str]] = None
@@ -353,8 +354,12 @@ class Config:
         def splitMultiArgumentString(_attr_name: str, attr_value: str):
             return shlex.split(attr_value)
 
+        def identity(attr_name: str, attr_value: str) -> str:
+            return attr_value
+
         prop_parsers = {
             ("use_mimalloc", parseYN),
+            ("json_export_path", identity),
             ("wasmtime_release_build", parseYN),
             ("wasmtime_cargo_build_args", splitMultiArgumentString),
             ("wasmtime_compile_args", splitMultiArgumentString),
@@ -824,6 +829,12 @@ class SubcommandRun:
             nargs="?",
         )
 
+        parser.add_argument(
+            "--json-export-path",
+            help="Export results to a json file with given path",
+            action="store",
+        )
+
         addSharedArgsToSubparser(parser)
         addRevisionSpecificArgsToSubparser(parser)
 
@@ -893,7 +904,11 @@ class SubcommandRun:
                 print(f"Commands for suite {suite_path}:")
                 print("\n".join(map(lambda t: t[0], benchmark_commands)))
             else:
-                Hyperfine.run(benchmark_commands, print_stdout=True)
+                Hyperfine.run(
+                    benchmark_commands,
+                    print_stdout=True,
+                    json_export_path=configuration.json_export_path,
+                )
 
 
 class SubcommandCompareRevs:
