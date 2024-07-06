@@ -1049,7 +1049,7 @@ class SubcommandCompareRevs:
 
             # Print results from each suite
             print(
-                "Results: (for each benchmark, showing mean runtime in rev1 / mean runtime in rev2)"
+                "Results: (for each benchmark, showing mean runtime in rev2 / mean runtime in rev1)"
             )
             for suite_path, benchmark_pairs in suite_files.items():
                 print(f"Suite: {suite_path}")
@@ -1058,7 +1058,7 @@ class SubcommandCompareRevs:
                         results = json.load(f)["results"]
                         rev1_mean = results[0]["mean"]
                         rev2_mean = results[1]["mean"]
-                        print(f"{bench.name}: {rev1_mean / rev2_mean}")
+                        print(f"{bench.name}: {rev2_mean / rev1_mean}")
 
 
 class SubcommandSetup:

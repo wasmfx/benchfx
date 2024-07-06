@@ -12,7 +12,8 @@ BENCHMARK_SUITES: List[Suite] = [
                 "c10m_wasmfx",
                 "c10m_wasmfx_fiber",
             ]
-        ],
+        ]
+        + [Wat("c10m_wasmfx", name="c10m_wasmfx_wat")],
     ),
     Suite(
         path="sieve",
@@ -24,7 +25,8 @@ BENCHMARK_SUITES: List[Suite] = [
                 "sieve_wasmfx",
                 "sieve_wasmfx_fiber",
             ]
-        ],
+        ]
+        + [Wat("sieve_wasmfx", name="sieve_wasmfx_wat")],
     ),
     Suite(
         path="skynet",
@@ -36,7 +38,8 @@ BENCHMARK_SUITES: List[Suite] = [
                 "skynet_wasmfx",
                 "skynet_wasmfx_fiber",
             ]
-        ],
+        ]
+        + [Wat("skynet_wasmfx", name="skynet_wasmfx_wat")],
     ),
     Suite(
         path="state",
@@ -48,7 +51,8 @@ BENCHMARK_SUITES: List[Suite] = [
                 "state_wasmfx",
                 "state_wasmfx_fiber",
             ]
-        ],
+        ]
+        + [Wat("state_wasmfx", name="state_wasmfx_wat")],
     ),
     Suite(path="micro/suspend_resume", benchmarks=[Wat("bench", invoke="run")]),
     Suite(path="micro/2resumes_same_function", benchmarks=[Wat("bench", invoke="run")]),
