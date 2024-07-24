@@ -58,7 +58,7 @@ version configured in `config.py` exists in the `tools` subdirectory and
 downloads it otherwise. 
 
 
-In addition, the harness requires a few standard tools (`hyperfine, `cmake`,
+In addition, the harness requires a few standard tools (`hyperfine`, `cmake`,
 `make`, `dune`, ... ) and will report and error if these are not found in
 `$PATH`. These must be installed manually by the user.
 
