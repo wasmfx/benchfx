@@ -19,7 +19,7 @@
     (param $num i64)
     (result i64)
       (block $on_yield (result i64 (ref $cyield))
-        (resume $ct (tag $yield $on_yield)
+        (resume $ct (on $yield $on_yield)
           (local.get $level)
           (local.get $num)
           (cont.new $ct (ref.func $skynet)))
