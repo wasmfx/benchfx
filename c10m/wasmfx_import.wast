@@ -40,7 +40,7 @@
     (local $k (ref null $cawt))
     (block $on_return (result i32)
       (block $on_yield (result i32 (ref $cawt))
-        (resume $cawt (tag $yield $on_yield) (local.get $value) (table.get $conts (local.get $key)))
+        (resume $cawt (on $yield $on_yield) (local.get $value) (table.get $conts (local.get $key)))
         (br $on_return)
       ) ;; on_yield [ i32 (ref $cawt) ]
       (local.set $k)

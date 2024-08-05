@@ -29,7 +29,7 @@
       (block $on_done (result i32)
         (block $on_put (result i32 (ref $cput))
           (block $on_get (result (ref $cget))
-            (resume $kt (tag $get $on_get) (tag $put $on_put) (local.get $k))
+            (resume $kt (on $get $on_get) (on $put $on_put) (local.get $k))
             (br $on_done)
           ) ;; on_get [ (ref $cget) ]
           (local.set $kget)
@@ -53,7 +53,7 @@
       (block $continue
         (block $on_put1 (result i32 (ref $cput))
           (block $on_get1 (result (ref $cget))
-            (resume $cinit (tag $get $on_get1) (tag $put $on_put1)
+            (resume $cinit (on $get $on_get1) (on $put $on_put1)
               (local.get $limit)
               (cont.new $cinit (ref.func $count)))
             (br $on_done)
@@ -75,11 +75,11 @@
                 ;; must have been `put`.
                 (br_on_null $handle_put (local.get $kget))
               ) ;; $handle_get
-              (resume $cget (tag $get $on_get) (tag $put $on_put)
+              (resume $cget (on $get $on_get) (on $put $on_put)
                 (local.get $state) (local.get $kget))
               (br $on_done)
             ) ;; $handle_put
-            (resume $cput (tag $get $on_get) (tag $put $on_put)
+            (resume $cput (on $get $on_get) (on $put $on_put)
               (local.get $kput))
             (br $on_done)
           ) ;; $on_get [ (ref $cget) ]
