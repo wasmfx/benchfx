@@ -35,12 +35,12 @@ BENCHMARK_SUITES: List[Suite] = [
 ]
 
 MIMALLOC_REVISION = "v2.1.2"
-# WebAssembly/binaryen#main as of April 8, 2024
-BINARYEN_REVISION = "102c3633d2378457dae1f5e239fd63ad80eefb92"
-# wasmfx/wasmfx#main as of April 9, 2024
-WASMTIME_REVISION = "7f63b553c3d2c91d7fe3ef0902ed1543f2fd1821"
-# wasmfx/specfx#main as of April 10, 2024
-SPEC_REVISION = "0af205c2c6a5569046274173d8c0388a3272087f"
+# WebAssembly/binaryen#main as of August 9, 2024
+BINARYEN_REVISION = "3386e642c76028438fc783bf97089115ea9a900f"
+# wasmfx/wasmfxtime#main as of August 7, 2024
+WASMTIME_REVISION = "41c90734bf069d2487dc6d7121372f6295cf43f2"
+# wasmfx/specfx#main as of August 7, 2024
+SPEC_REVISION = "6d01dfc84d8d9bba6cfeedb0aa078918b082dd3c"
 
 WASMTIME_CARGO_BUILD_ARGS = [
     "--features=default,unsafe_disable_continuation_linearity_check"
