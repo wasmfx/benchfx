@@ -267,7 +267,13 @@ class Binaryen:
 
     def build(self):
         cpus = multiprocessing.cpu_count()
-        runCheck("cmake .", msg="cmake for binaryen failed", cwd=self.path)
+        # TODO(frank-emrich) Build with clang until the following is fixed:
+        # https://github.com/WebAssembly/binaryen/issues/6779
+        runCheck(
+            "cmake -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ .",
+            msg="cmake for binaryen failed",
+            cwd=self.path,
+        )
         runCheck(f"make -j {cpus}", msg="building binaryen failed", cwd=self.path)
 
     def wasmMergeExecutablePath(self) -> Path:
