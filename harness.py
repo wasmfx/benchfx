@@ -2,6 +2,7 @@
 
 import argparse
 import config
+import datetime
 import json
 import multiprocessing
 import os
@@ -39,13 +40,15 @@ logLevel = 0
 
 
 def logProcessOutput(msg, sep=None):
+    now = datetime.datetime.now()
     if logLevel > 1:
-        print(msg, sep=sep)
+        print(f"{now}: ", msg, sep=sep)
 
 
 def logMsg(msg, sep=None):
+    now = datetime.datetime.now()
     if logLevel > 0:
-        print(msg, sep=sep)
+        print(f"{now}: ", msg, sep=sep)
 
 
 @dataclass
