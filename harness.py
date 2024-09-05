@@ -268,22 +268,33 @@ def runCheck(cmd, msg=None, cwd=None):
 class Binaryen:
     path: Path
 
+    def _build_path(self):
+        return self.path / "build"
+
     def build(self):
         cpus = multiprocessing.cpu_count()
+
+        runCheck(
+            f"mkdir -p build",
+            cwd=self.path,
+        )
+
         # TODO(frank-emrich) Build with clang until the following is fixed:
         # https://github.com/WebAssembly/binaryen/issues/6779
         runCheck(
-            "cmake -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ .",
+            "cmake -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -S .. -B .",
             msg="cmake for binaryen failed",
-            cwd=self.path,
+            cwd=self._build_path(),
         )
-        runCheck(f"make -j {cpus}", msg="building binaryen failed", cwd=self.path)
+        runCheck(
+            f"make -j {cpus}", msg="building binaryen failed", cwd=self._build_path()
+        )
 
     def wasmMergeExecutablePath(self) -> Path:
-        return self.path / "bin" / "wasm-merge"
+        return self._build_path() / "bin" / "wasm-merge"
 
     def wasmOptExecutablePath(self) -> Path:
-        return self.path / "bin" / "wasm-opt"
+        return self._build_path() / "bin" / "wasm-opt"
 
 
 class Mimalloc:
