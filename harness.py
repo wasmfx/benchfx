@@ -925,6 +925,17 @@ class SubcommandCompareRevs:
             "revision2", help="Second Wasmtime revision to use in the comparison"
         )
 
+        parser.add_argument(
+            "--max-allowed-regression",
+            metavar="P",
+            type=int,
+            help="""Fail if any benchmark regresses by more than P percent.
+            For example, if P is 20, then the harness fails with an error if
+            there exists any benchmark B where B's runtime using revision 2
+            divided by B's runtime using revision 1 is greater than 1.2.
+            """,
+        )
+
         addSharedArgsToSubparser(parser)
         addRevisionSpecificArgsToSubparser(
             parser, revision_qualifier="rev1", desc="revision 1"
@@ -944,6 +955,12 @@ class SubcommandCompareRevs:
     def execute(self, cli_args: argparse.Namespace):
         if not cli_args.allow_dirty:
             checkBenchFxRepoClean()
+
+        check(
+            cli_args.max_allowed_regression is None
+            or cli_args.max_allowed_regression >= 0,
+            "--max-allowed-regression must be non-negative",
+        )
 
         checkDependenciesPresent(need_second_wasmtime_repo=True)
 
@@ -1037,8 +1054,9 @@ class SubcommandCompareRevs:
 
             # Print results from each suite
             print(
-                "Results: (for each benchmark, showing mean runtime in rev1 / mean runtime in rev2)"
+                "Results: (for each benchmark, showing mean runtime in rev2 / mean runtime in rev1)"
             )
+            exceeded_allowed_regression = []
             for suite_path, benchmark_pairs in suite_files.items():
                 print(f"Suite: {suite_path}")
                 for bench, _, json_path in benchmark_pairs:
@@ -1046,7 +1064,24 @@ class SubcommandCompareRevs:
                         results = json.load(f)["results"]
                         rev1_mean = results[0]["mean"]
                         rev2_mean = results[1]["mean"]
-                        print(f"{bench.name}: {rev1_mean / rev2_mean}")
+                        ratio = rev2_mean / rev1_mean
+                        if cli_args.max_allowed_regression is not None:
+                            if ratio * 100 > (100 + cli_args.max_allowed_regression):
+                                exceeded_allowed_regression.append(
+                                    (suite_path, bench.name, ratio)
+                                )
+
+                        print(f"{bench.name}: {ratio}")
+
+            if exceeded_allowed_regression:
+                print(
+                    f"Some benchmarks regressed by more than {cli_args.max_allowed_regression}%:"
+                )
+                for suite_path, bench_name, ratio in exceeded_allowed_regression:
+                    print(
+                        f"suite {suite_path}, bench {bench_name}: {ratio * 100 - 100}% regression"
+                    )
+                raise HarnessError("performance regression")
 
 
 class SubcommandSetup:
