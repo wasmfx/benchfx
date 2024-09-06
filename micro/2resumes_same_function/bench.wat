@@ -5,7 +5,7 @@
 
  (tag $t)
 
- (global $iterations i32 (i32.const 100000000))
+ (global $iterations i32 (i32.const 20000000))
 
  (func $suspend0
    (local $i i32)
