@@ -2,6 +2,8 @@
 
 import argparse
 import config
+import dataclasses
+import datetime
 import json
 import multiprocessing
 import os
@@ -9,6 +11,7 @@ import shlex
 import subprocess
 import sys
 import traceback
+import typing
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,13 +42,15 @@ logLevel = 0
 
 
 def logProcessOutput(msg, sep=None):
+    now = datetime.datetime.now()
     if logLevel > 1:
-        print(msg, sep=sep)
+        print(f"{now}: ", msg, sep=sep)
 
 
 def logMsg(msg, sep=None):
+    now = datetime.datetime.now()
     if logLevel > 0:
-        print(msg, sep=sep)
+        print(f"{now}: ", msg, sep=sep)
 
 
 @dataclass
@@ -265,22 +270,33 @@ def runCheck(cmd, msg=None, cwd=None):
 class Binaryen:
     path: Path
 
+    def _build_path(self):
+        return self.path / "build"
+
     def build(self):
         cpus = multiprocessing.cpu_count()
+
+        runCheck(
+            f"mkdir -p build",
+            cwd=self.path,
+        )
+
         # TODO(frank-emrich) Build with clang until the following is fixed:
         # https://github.com/WebAssembly/binaryen/issues/6779
         runCheck(
-            "cmake -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ .",
+            "cmake -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -S .. -B .",
             msg="cmake for binaryen failed",
-            cwd=self.path,
+            cwd=self._build_path(),
         )
-        runCheck(f"make -j {cpus}", msg="building binaryen failed", cwd=self.path)
+        runCheck(
+            f"make -j {cpus}", msg="building binaryen failed", cwd=self._build_path()
+        )
 
     def wasmMergeExecutablePath(self) -> Path:
-        return self.path / "bin" / "wasm-merge"
+        return self._build_path() / "bin" / "wasm-merge"
 
     def wasmOptExecutablePath(self) -> Path:
-        return self.path / "bin" / "wasm-opt"
+        return self._build_path() / "bin" / "wasm-opt"
 
 
 class Mimalloc:
@@ -1195,6 +1211,42 @@ class SubcommandSetup:
                 init_repo(repo, wasmtime_github_remotes)
 
 
+class SubcommandPrintConfig:
+    """Implements the 'print-config' subcommand."""
+
+    @staticmethod
+    def addSubparser(subparsers):
+        parser = subparsers.add_parser(
+            "print-config",
+            help="Prints configuration as JSON; helpful for automation.",
+        )
+
+    def execute(self, cli_args: argparse.Namespace):
+        class CustomEncoder(json.JSONEncoder):
+            def default(self, o):
+                if dataclasses.is_dataclass(o) and not isinstance(o, type):
+                    return dataclasses.asdict(o)
+                else:
+                    return super().default(o)
+
+        # Get all the toplevel variable definitions of the config module.
+        config_object = {}
+        for k, v in config.__dict__.items():
+            # Skip builtin stuff inside a module
+            if k.startswith("__"):
+                continue
+            # Skip classes defined in the module
+            if isinstance(v, type):
+                continue
+            # For some reason, the "special generic alias" List also appears here.
+            # We don't want it.
+            if k == "List":
+                continue
+
+            config_object[k] = v
+        print(json.dumps(config_object, cls=CustomEncoder))
+
+
 def main():
     parser = argparse.ArgumentParser(prog="harness")
 
@@ -1210,6 +1262,7 @@ def main():
         "run": SubcommandRun,
         "compare-revs": SubcommandCompareRevs,
         "setup": SubcommandSetup,
+        "print-config": SubcommandPrintConfig,
     }
 
     subparsers = parser.add_subparsers(
