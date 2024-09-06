@@ -1224,7 +1224,7 @@ class SubcommandPrintConfig:
     def execute(self, cli_args: argparse.Namespace):
         class CustomEncoder(json.JSONEncoder):
             def default(self, o):
-                if dataclasses.is_dataclass(o):
+                if dataclasses.is_dataclass(o) and not isinstance(o, type):
                     return dataclasses.asdict(o)
                 else:
                     return super().default(o)
