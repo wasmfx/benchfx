@@ -2,6 +2,7 @@
 
 import argparse
 import config
+import dataclasses
 import datetime
 import json
 import multiprocessing
@@ -10,6 +11,7 @@ import shlex
 import subprocess
 import sys
 import traceback
+import typing
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -1209,6 +1211,42 @@ class SubcommandSetup:
                 init_repo(repo, wasmtime_github_remotes)
 
 
+class SubcommandPrintConfig:
+    """Implements the 'print-config' subcommand."""
+
+    @staticmethod
+    def addSubparser(subparsers):
+        parser = subparsers.add_parser(
+            "print-config",
+            help="Prints configuration as JSON; helpful for automation.",
+        )
+
+    def execute(self, cli_args: argparse.Namespace):
+        class CustomEncoder(json.JSONEncoder):
+            def default(self, o):
+                if dataclasses.is_dataclass(o):
+                    return dataclasses.asdict(o)
+                else:
+                    return super().default(o)
+
+        # Get all the toplevel variable definitions of the config module.
+        config_object = {}
+        for k, v in config.__dict__.items():
+            # Skip builtin stuff inside a module
+            if k.startswith("__"):
+                continue
+            # Skip classes defined in the module
+            if isinstance(v, type):
+                continue
+            # For some reason, the "special generic alias" List also appears here.
+            # We don't want it.
+            if k == "List":
+                continue
+
+            config_object[k] = v
+        print(json.dumps(config_object, cls=CustomEncoder))
+
+
 def main():
     parser = argparse.ArgumentParser(prog="harness")
 
@@ -1224,6 +1262,7 @@ def main():
         "run": SubcommandRun,
         "compare-revs": SubcommandCompareRevs,
         "setup": SubcommandSetup,
+        "print-config": SubcommandPrintConfig,
     }
 
     subparsers = parser.add_subparsers(
