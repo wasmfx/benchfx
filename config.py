@@ -35,24 +35,24 @@ BENCHMARK_SUITES: List[Suite] = [
 ]
 
 MIMALLOC_REVISION = "v2.1.2"
-# WebAssembly/binaryen#main as of August 9, 2024
-BINARYEN_REVISION = "3386e642c76028438fc783bf97089115ea9a900f"
-# wasmfx/wasmfxtime#main as of August 7, 2024
-WASMTIME_REVISION = "41c90734bf069d2487dc6d7121372f6295cf43f2"
-# wasmfx/specfx#main as of August 7, 2024
-SPEC_REVISION = "6d01dfc84d8d9bba6cfeedb0aa078918b082dd3c"
+# WebAssembly/binaryen#main as of February 26, 2025
+BINARYEN_REVISION = "609bcec0c1c321d2b4805e341a558679ae710e99"
+# wasmfx/wasmfxtime#main as of February 26, 2025
+WASMTIME_REVISION = "21540296f1c262188636fe0fb373cd2a9600d764"
+# wasmfx/specfx#main as of February 26, 2025
+SPEC_REVISION = "54d6657b16b7bf134808064e4f77845a2b7c4fcc"
 
 WASMTIME_CARGO_BUILD_ARGS = [
-    "--features=default,unsafe_disable_continuation_linearity_check"
+    "--features=default"
 ]
 WASMTIME_RUN_ARGS = [
-    "-W=exceptions,function-references,typed-continuations",
+    "-W=exceptions,function-references,stack-switching",
     "-Ccache=n",
     "-Wwasmfx-stack-size=4096",
     "-Wwasmfx-red-zone-size=0",
 ]
 WASMTIME_COMPILE_ARGS = [
-    "-W=exceptions,function-references,typed-continuations",
+    "-W=exceptions,function-references,stack-switching",
     "-Ccache=n",
 ]
 
